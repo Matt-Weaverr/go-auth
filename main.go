@@ -4,5 +4,5 @@ import "fmt"
 
 func main() {
 	initDB()
-	defer db.close()
+	defer db.Close()
 }
