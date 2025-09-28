@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"strings"
 	"time"
 )
@@ -49,7 +50,7 @@ func verifyJWT(token string, refreshtoken string) (bool, string) {
 		return false, ""
 	}
 	if payload.Exp <= uint64(time.Now().Unix()) {
-		p, err := read(payload.Id)
+		p, err := read[int](payload.Id)
 		if err != nil {
 			return false, ""
 		}
