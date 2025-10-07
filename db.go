@@ -21,11 +21,12 @@ type Profile struct {
 	Password_Hash string
 	Tfa_Enabled bool
 	Tfa_Verified bool
-	Tfa_Code string
+	Tfa_Code int
+	Tfa_Code_Expiration int64
 	Reset_Password_Token string
-	Reset_Password_Expiration uint64
+	Reset_Password_Expiration int64
 	Refresh_Token string
-	Refresh_Token_Expiration uint64
+	Refresh_Token_Expiration int64
 }
 
 var db *sql.DB
@@ -52,7 +53,8 @@ func initDB() {
 		password_hash VARCHAR(100) NOT NULL,
 		tfa_enabled BOOLEAN DEFAULT 0,
 		tfa_verified BOOLEAN DEFAULT 0,
-		tfa_code VARCHAR(100),
+		tfa_code INT,
+		tfa_code_expiration BIGINT,
 		reset_password_token INT,
 		reset_password_expiration BIGINT,
 		Refresh_Token VARCHAR(100),
@@ -155,8 +157,10 @@ func read[T any](key any) (Profile, error) {
 		&p.Name,
 		&p.Email,
 		&p.Password_Hash,
+		&p.Tfa_Enabled
 		&p.Tfa_Verified,
 		&p.Tfa_Code,
+		&p.Tfa_Code.Expiration,
 		&p.Reset_Password_Token,
 		&p.Reset_Password_Expiration,
 		&p.Refresh_Token,

@@ -16,14 +16,14 @@ type Payload struct {
 	Id int
 	Name string
 	Email string
-	Exp uint64
+	Exp int64
 }
 func generateJWT(id int, email string, name string) string {
 	payload := Payload{
 		Id:  id,
 		Name: name,
 		Email: email,
-		Exp: uint64(time.Now().Add(15*time.Minute).Unix())}
+		Exp: time.Now().Add(15*time.Minute).Unix()}
 
 		payloadjson,_ := json.Marshal(payload)
 		payloadjsonstring := base64.RawURLEncoding.EncodeToString(payloadjson)
@@ -49,12 +49,12 @@ func verifyJWT(token string, refreshtoken string) (bool, string) {
 	if err = json.Unmarshal(payloadbytes, &payload); err != nil {
 		return false, ""
 	}
-	if payload.Exp <= uint64(time.Now().Unix()) {
+	if payload.Exp <= time.Now().Unix() {
 		p, err := read[int](payload.Id)
 		if err != nil {
 			return false, ""
 		}
-		if p.Refresh_Token_Expiration <= uint64(time.Now().Unix()) {
+		if p.Refresh_Token_Expiration <= time.Now().Unix() {
 			return false, ""
 		}
 		if p.Refresh_Token != refreshtoken {

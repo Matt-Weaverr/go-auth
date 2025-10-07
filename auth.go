@@ -33,8 +33,9 @@ func login(email string, password string, devicefingerprint string) (int, string
 		log.Printf("Failed to generate refresh token for user %s", email)
 		return  2, "", ""
 	}
-	err = update(p.Id, "refresh_token", refreshtoken)
-	err = update(p.Id, "refresh_token_expiration", time.Now().Add(168*time.Hour).Unix())
+	err = update[string](p.Id, "refresh_token", refreshtoken)
+	err = update[int64](p.Id, "refresh_token_expiration", time.Now().Add(168*time.Hour).Unix())
+
 	if err != nil {
 		return 2, "", ""
 	}
@@ -73,11 +74,27 @@ func enableTfa(id int) {
 	
 }
 
-func verifyTfa(id int) int {
+func verifyTfa(id int, code int) int {
 	p, err := read[int](id)
 	if err != nil {
 		return -1
 	}
-	p.
+	
+	if !p.Tfa_Enabled {
+		return 1
+	}
+
+	err := update[int](p.Id, "tfa_code", generateRandomInt(100000, 999999))
+	err := update[int64](p.Id, "tfa_code_expiration", time.Now().Add(5*time.Minute).Unix())
+
+	if err != nil {
+		log.Printf("Could not update user tfa code in db %s", p.Email)
+		return -1
+	}
+
+	if p.Tfa_Code != code || p.Tfa_Code_Expiration <= time.Now().Unix() {
+		return 2
+	}
+	return 0
 }
 

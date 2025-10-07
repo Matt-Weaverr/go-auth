@@ -3,6 +3,8 @@ package main
 import (
 	"golang.org/x/crypto/bcrypt"
 	"crypto/rand"
+	"math/rand"
+	"time"
 )
 
 const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
@@ -30,5 +32,11 @@ func generateRandomToken(length int) (string, error) {
 		bytes[i] = charset[b%byte(l)]
 	}
 	return string(bytes), nil
+}
+
+func generateRandomInt(min int, max int) int {
+	rand.Seed(time.Now().UnixNano())
+	randomint := rand.Intn(max-min+1) + min
+	return randomint
 }
 
