@@ -12,7 +12,7 @@ const DB_USER = "root"
 const DB_PASSWORD = ""
 const DB_ADDRESS = "localhost"
 const DB_PORT = "3306"
-const DB_NAME = "go-auth-service"
+const DB_NAME = "SSO"
 
 type Profile struct {
 	Id int
@@ -57,7 +57,7 @@ func initDB() {
 		tfa_code_expiration BIGINT,
 		reset_password_token INT,
 		reset_password_expiration BIGINT,
-		Refresh_Token VARCHAR(100),
+		refresh_Token VARCHAR(100),
 		refresh_token_expiration BIGINT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`
 
@@ -66,13 +66,23 @@ func initDB() {
 		user_id int NOT NULL,
 		device_fingerprint VARCHAR(100) NOT NULL`
 
+	authorization_codes_table := `
+	CREATE TABLE IF NOT EXISTS authorization_codes_table
+		code VARCHAR(100) NOT NULL,
+		signed_jwt VARCHAR(1000) NOT NULL,
+		refresh_token INT NOT NULL`
+
 
 	if _, err = d.Exec(profiles_table); err != nil {
-		log.Fatal("Unable to create profile table")
+		log.Fatal("Unable to create profiles_table")
+	}
+
+	if _, err = d.Exec(authorization_codes_table); err != nil {
+		log.Fatal("Unable to create authorization_codes_table table")
 	}
 
 	if _,err = d.Exec(trusted_devices_table); err != nil {
-		log.Fatal("Unable to creare trusted_devices table")
+		log.Fatal("Unable to create trusted_devices table")
 	}
 
 
@@ -81,7 +91,7 @@ func initDB() {
 }
 
 
-func insert(email string, passwordhash string, name string) bool {
+func insertProfile(email string, passwordhash string, name string) bool {
 		
 		stmt, err := db.Prepare("INSERT INTO profiles (name, email, password_hash) VALUES (?,?,?)")
 
@@ -103,7 +113,7 @@ func insert(email string, passwordhash string, name string) bool {
 		return true
 }
 
-func update[T any](id int, column string, value T) error {
+func updateProfile[T any](id int, column string, value T) error {
 	stmt, err := db.Prepare("UPDATE profiles SET " + column + " = " + "? WHERE id = ?")
 
 	if err != nil {
@@ -122,7 +132,7 @@ func update[T any](id int, column string, value T) error {
 	return nil
 }
 
-func delete(id int) {
+func deleteProfile(id int) {
 		stmt, err := db.Prepare("DELETE FROM profiles WHERE id = ?")
 
 	if err != nil {
@@ -139,7 +149,7 @@ func delete(id int) {
 	log.Printf("Deleted profile with id %d", id)
 }
 
-func read[T any](key any) (Profile, error) {
+func readProfile[T any](key any) (Profile, error) {
 	var p Profile
 	var query string
 	switch any(key).(type) {
@@ -194,5 +204,24 @@ func isTrustedDevice(user_id int, fingerprint string) bool {
 		return false
 	 }
 	 return trusted
+}
+
+func generateAuthorization(accesstoken string, refreshtoken string) string{
+		stmt, err := db.Prepare("INSERT INTO authorization_codes_table (code, signed_jwt, refresh_token) VALUES (?,?,?)")
+
+		if err != nil {
+			log.Printf("Error preparing insert statement: ", err)
+			return ""
+		}
+		defer stmt.Close()
+
+		authorizationcode = generateRandomToken(16)
+		_, err = stmt.Exec(authorizationcode, accesstoken, refreshtoken)
+
+		if err != nil {
+			log.Printf("Error generating authorization code: ", err)
+			return ""
+		}
+		return authorizationcode
 }
 

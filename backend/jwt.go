@@ -73,7 +73,7 @@ func generateJWT(id int, email string, name string) string {
 		senc := base64.RawURLEncoding.EncodeToString(signature)
 		return payloadjsonstring + "." + senc
 	}
-
+	
 func generateSignature(data []byte, priv *rsa.PrivateKey) ([]byte, error) {
 	hash := sha256.Sum256(data);
 	return rsa.SignPKCS1v15(rand.Reader, priv, crypto.SHA256, hash[:])

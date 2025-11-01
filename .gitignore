@@ -1,4 +1,4 @@
-go-auth
-go-auth.exe
-private_key.pem
-public_key.pem
+backend/go-auth
+backend/go-auth.exe
+backend/private_key.pem
+backend/public_key.pem
