@@ -26,6 +26,13 @@ func login(email string, password string, devicefingerprint string) (int, string
 	}
 
 	if p.Tfa_Enabled && !isTrustedDevice(p.Id, devicefingerprint){
+		err = update[int](p.Id, "tfa_code", generateRandomInt(100000, 999999))
+		err = update[int64](p.Id, "tfa_code_expiration", time.Now().Add(5*time.Minute).Unix())
+
+		if err != nil {
+			log.Printf("Could not update user tfa code in db %s", p.Email)
+			return -1, "", ""
+		}
 		return 4, "", ""
 	}
 	refreshtoken, err := generateRandomToken(16)
@@ -70,8 +77,18 @@ func register(name string, email string, password string) int {
 	return 0
 }
 
-func enableTfa(id int) {
-	
+func enableTfa(id int) bool {
+	err := update[int](id, "tfa_code", generateRandomInt(100000, 999999))
+	err = update[int64](id, "tfa_code_expiration", time.Now().Add(5*time.Minute).Unix())
+
+	if err != nil {
+		log.Printf("Could not update user tfa code in db %s", p.Email)
+		return false
+	}
+	if (id) {
+
+	}
+	return false
 }
 
 func verifyTfa(id int, code int) int {
@@ -82,14 +99,6 @@ func verifyTfa(id int, code int) int {
 	
 	if !p.Tfa_Enabled {
 		return 1
-	}
-
-	err := update[int](p.Id, "tfa_code", generateRandomInt(100000, 999999))
-	err := update[int64](p.Id, "tfa_code_expiration", time.Now().Add(5*time.Minute).Unix())
-
-	if err != nil {
-		log.Printf("Could not update user tfa code in db %s", p.Email)
-		return -1
 	}
 
 	if p.Tfa_Code != code || p.Tfa_Code_Expiration <= time.Now().Unix() {

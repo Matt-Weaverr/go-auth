@@ -1,2 +1,4 @@
 go-auth
 go-auth.exe
+private_key.pem
+public_key.pem
