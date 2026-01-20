@@ -3,7 +3,6 @@ package main
 import (
 	"log"
 	"time"
-
 )
 /*
 Login status codes
@@ -14,7 +13,7 @@ Login status codes
 0 = successful login
 */
 func login(email string, password string, devicefingerprint string) (int, string, string) {
-	p, err := read[string](email)
+	p, err := readProfile[string](email)
 	if err != nil {
 		log.Printf("Failed to find user in db (%s)", email)
 		return -1, "", ""
@@ -41,7 +40,7 @@ func login(email string, password string, devicefingerprint string) (int, string
 		return  2, "", ""
 	}
 	err = updateProfile[string](p.Id, "refresh_token", refreshtoken)
-	err = update[int64](p.Id, "refresh_token_expiration", time.Now().Add(168*time.Hour).Unix())
+	err = updateProfile[int64](p.Id, "refresh_token_expiration", time.Now().Add(168*time.Hour).Unix())
 
 	if err != nil {
 		return 2, "", ""
@@ -81,11 +80,8 @@ func enableTfa(id int) bool {
 	err = updateProfile[int64](id, "tfa_code_expiration", time.Now().Add(5*time.Minute).Unix())
 
 	if err != nil {
-		log.Printf("Could not update user tfa code in db %s", p.Email)
+		log.Printf("Could not update user tfa code in db for id %d", id)
 		return false
-	}
-	if (id) {
-
 	}
 	return false
 }

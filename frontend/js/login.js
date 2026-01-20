@@ -1,0 +1,75 @@
+const body = document.querySelector("body");
+
+window.addEventListener("hashchange", hashChange);
+window.addEventListener("load", hashChange);
+
+function hashChange() {
+    if (location.hash == "#register") {
+    body.innerHTML = `
+        <div class="container">
+            <h1>Register</h1>
+            <form>
+                <span>
+                    <label>Full Name</label>
+                    <input type="text" name="name" placeholder="Name" required />
+                </span>
+                <span>
+                    <label>Email</label>
+                    <input type="email" name="email" placeholder="Email" required />
+                </span>
+                <span>
+                    <label>Password</label>
+                    <input type="password" name="password" placeholder="Password" />
+                </span>
+                <span>
+                    <label>Confirm Password</label>
+                    <input type="password" name="confirm-password" placeholder="Password" />
+                </span>
+                <button type="submit">Register</button>
+            </form>
+            <p>
+                Already have an accout?
+                <a href="#login">Login</a>
+            </p>
+    </div>`
+    return;
+    }
+    if (location.hash == "#forgot-password") {
+        body.innerHTML = `
+        <div class="container">
+            <h1>Password reset</h1>
+            <form>
+                <span>
+                    <label>Email</label>
+                    <input type="email" name="email" placeholder="Email" required />
+                </span>
+                <button type="submit">Reset password</button>
+            </form>
+            <p>
+                Remember your password?
+                <a href="#login">Login</a>
+            </p>
+    </div>`
+    return;
+    }
+    body.innerHTML = `
+    <div class="container">
+        <h1>Login</h1>
+        <form>
+            <span>
+                <label>Email</label>
+                <input type="email" name="email" placeholder="Email" required />
+            </span>
+            <span>
+                <label>Password</label>
+                <input type="password" name="password" placeholder="Password" />
+                <a id="forgot-password" href="#forgot-password">Forgot password?</a>
+            </span>
+            <button type="submit">Login</button>
+        </form>
+        <p>
+            Don't have an account?
+            <a href="#register">Register</a>
+        </p>
+    </div>`
+}

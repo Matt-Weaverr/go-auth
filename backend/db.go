@@ -109,7 +109,7 @@ func insertProfile(email string, passwordhash string, name string) bool {
 			return false
 		}
 		
-		log.Printf("New profile created: %s, %s", p.Name, p.Email)
+		log.Printf("New profile created: %s, %s", name, email)
 		return true
 }
 
@@ -167,10 +167,10 @@ func readProfile[T any](key any) (Profile, error) {
 		&p.Name,
 		&p.Email,
 		&p.Password_Hash,
-		&p.Tfa_Enabled
+		&p.Tfa_Enabled,
 		&p.Tfa_Verified,
 		&p.Tfa_Code,
-		&p.Tfa_Code.Expiration,
+		&p.Tfa_Code_Expiration,
 		&p.Reset_Password_Token,
 		&p.Reset_Password_Expiration,
 		&p.Refresh_Token,
@@ -215,7 +215,7 @@ func generateAuthorization(accesstoken string, refreshtoken string) string{
 		}
 		defer stmt.Close()
 
-		authorizationcode = generateRandomToken(16)
+		authorizationcode, err := generateRandomToken(16)
 		_, err = stmt.Exec(authorizationcode, accesstoken, refreshtoken)
 
 		if err != nil {
