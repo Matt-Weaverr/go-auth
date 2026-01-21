@@ -83,7 +83,7 @@ func enableTfa(id int) bool {
 		log.Printf("Could not update user tfa code in db for id %d", id)
 		return false
 	}
-	return false
+	return true
 }
 
 func verifyTfa(id int, code int) int {
@@ -93,7 +93,7 @@ func verifyTfa(id int, code int) int {
 	}
 	
 	if !p.Tfa_Enabled {
-		return 1
+		return 0
 	}
 
 	if p.Tfa_Code != code || p.Tfa_Code_Expiration <= time.Now().Unix() {

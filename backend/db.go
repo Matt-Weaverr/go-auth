@@ -9,10 +9,10 @@ import (
 )
 
 const DB_USER = "root"
-const DB_PASSWORD = ""
+const DB_PASSWORD = "password"
 const DB_ADDRESS = "localhost"
 const DB_PORT = "3306"
-const DB_NAME = "SSO"
+const DB_NAME = "sso"
 
 type Profile struct {
 	Id int
@@ -69,7 +69,7 @@ func initDB() {
 	authorization_codes_table := `
 	CREATE TABLE IF NOT EXISTS authorization_codes_table
 		code VARCHAR(100) NOT NULL,
-		signed_jwt VARCHAR(1000) NOT NULL,
+		access_token VARCHAR(1000) NOT NULL,
 		refresh_token INT NOT NULL`
 
 
@@ -206,8 +206,8 @@ func isTrustedDevice(user_id int, fingerprint string) bool {
 	 return trusted
 }
 
-func generateAuthorization(accesstoken string, refreshtoken string) string{
-		stmt, err := db.Prepare("INSERT INTO authorization_codes_table (code, signed_jwt, refresh_token) VALUES (?,?,?)")
+func generateAuthorization(accesstoken string, refreshtoken string) string {
+		stmt, err := db.Prepare("INSERT INTO authorization_codes_table (code, access_token, refresh_token) VALUES (?,?,?)")
 
 		if err != nil {
 			log.Printf("Error preparing insert statement: ", err)
@@ -223,5 +223,20 @@ func generateAuthorization(accesstoken string, refreshtoken string) string{
 			return ""
 		}
 		return authorizationcode
+}
+
+func getTokens(code string) (int, string, string) {
+	var refresh_token string
+	var access_token string
+
+	err := db.QueryRow("SELECT access_token, refresh_token FROM authorization_codes_table WHERE code = ?", code).Scan(&access_token, &refresh_token)
+
+	if err != nil {
+		log.Printf("Could not fetch tokens from db: ", err)
+		return -1, "", ""
+	}
+
+	return 0, access_token, refresh_token
+
 }
 

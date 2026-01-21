@@ -7,8 +7,7 @@ import (
 
 type AuthResponse struct {
 	Tfa bool `json:"tfa"`
-	Refresh_Token string `json:"refresh-token"`
-	Access_Token string `json:"access-token"`
+	Authorization_Code string `json:"authorization-code"`
 	Error bool `json:"error"`
 	Message string `json:"message"`
 }
@@ -32,14 +31,15 @@ func initRouter() {
 	0 = successful login
 	*/
 
+	authorization_code := generateAuthorization(accesstoken, refreshtoken)
+
 	w.Header().Set("Content-Type", "application/json")
 
 	switch status {
 	case -1, 1:
 		err := json.NewEncoder(w).Encode(AuthResponse{
 			Tfa: false,
-			Refresh_Token: "",
-			Access_Token: "",
+			Authorization_Code: "",
 			Error: true,
 			Message: "Email or password is incorrect"})
 
@@ -52,8 +52,7 @@ func initRouter() {
 		err := json.NewEncoder(w).Encode(AuthResponse{
 			Tfa: true,
 			Error: false,
-			Refresh_Token: "",
-			Access_Token: "",
+			Authorization_Code: "",
 			Message: ""})
 
 		if err != nil {
@@ -65,8 +64,7 @@ func initRouter() {
 		err := json.NewEncoder(w).Encode(AuthResponse{
 			Tfa: false,
 			Error: false,
-			Refresh_Token: refreshtoken,
-			Access_Token: accesstoken,
+			Authorization_Code: authorization_code,
 			Message: "Failed to login. Please try again later"})
 
 		if err != nil {
@@ -78,8 +76,7 @@ func initRouter() {
 		err := json.NewEncoder(w).Encode(AuthResponse{
 			Tfa: false,
 			Error: true,
-			Refresh_Token: "",
-			Access_Token: "",
+			Authorization_Code: "",
 			Message: "Failed to login. Please try again later"})
 
 		if err != nil {
@@ -112,8 +109,7 @@ func initRouter() {
 			err := json.NewEncoder(w).Encode(AuthResponse{
 				Tfa: false,
 				Error: true,
-				Refresh_Token: "",
-				Access_Token: "",
+				Authorization_Code: "",
 				Message: "Email already exists"})
 
 			if err != nil {
@@ -125,8 +121,7 @@ func initRouter() {
 			err := json.NewEncoder(w).Encode(AuthResponse{
 				Tfa: false,
 				Error: false,
-				Refresh_Token: "",
-				Access_Token: "",
+				Authorization_Code: "",
 				Message: ""})
 
 			if err != nil {
@@ -138,8 +133,7 @@ func initRouter() {
 			err := json.NewEncoder(w).Encode(AuthResponse{
 				Tfa: false,
 				Error: true,
-				Refresh_Token: "",
-				Access_Token: "",
+				Authorization_Code: "",
 				Message: "Failed to create new user. Please try again later"})
 
 			if err != nil {
@@ -160,6 +154,31 @@ func initRouter() {
 		w.Write([]byte("hello world"))
 	})
 
+	mux.HandleFunc("/authorization", func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+
+		code := query.Get("code")
+
+		status, refresh_token, access_token := getTokens(code)
+		
+		if status == -1 {
+				http.Error(w, "Failed to find codes", http.StatusNotFound)
+				return
+			}
+		
+		err := json.NewEncoder(w).Encode(map[string]string{
+			"refresh-token": refresh_token,
+			"access-token": access_token,
+		})
+
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+				
+	})
+
 	mux.HandleFunc("/public-key", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("hello world"))
 	})
@@ -168,7 +187,7 @@ func initRouter() {
 		w.Write([]byte("hello world"))
 	})
 
-	mux.HandleFunc("/info", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/user", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("hello world"))
 	})
 
