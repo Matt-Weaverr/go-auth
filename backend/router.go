@@ -147,11 +147,11 @@ func initRouter() {
 	})
 
 	mux.HandleFunc("/enable-tfa", func(w http.ResponseWriter, r *http.Request) {
-		
+		//
 	})
 
 	mux.HandleFunc("/verify-tfa", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("hello world"))
+		//
 	})
 
 	mux.HandleFunc("/authorization", func(w http.ResponseWriter, r *http.Request) {
@@ -171,28 +171,42 @@ func initRouter() {
 			"access-token": access_token,
 		})
 
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 				
 	})
 
 	mux.HandleFunc("/public-key", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("hello world"))
+
+		key := loadRSAPublicKeyFromPEM("public-key.pem")
+
+		if key == nil {
+			http.Error(w, "Failed to get public key", http.StatusNotFound)
+			return
+		}
+		err := json.NewEncoder(w).Encode(map[string]string{
+			"public-key": string(key),
+		})
+
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	})
 
 	mux.HandleFunc("/reset-password", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("hello world"))
+		//
 	})
 
 	mux.HandleFunc("/user", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("hello world"))
+		//
 	})
 
 	mux.HandleFunc("/update", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("hello world"))
+		//
 	})
 
 	http.ListenAndServe(":8000", mux)
