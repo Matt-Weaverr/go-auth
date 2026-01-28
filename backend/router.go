@@ -2,8 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 )
+
+const ALLOWED_ORIGIN = "*"
 
 type AuthResponse struct {
 	Tfa bool `json:"tfa"`
@@ -12,16 +15,34 @@ type AuthResponse struct {
 	Message string `json:"message"`
 }
 
+type NewUser struct {
+	Email string `json:"email"`
+	Name string `json:"name"`
+	Password string `json:"password"`
+}
+
+type User struct {
+	Email string `json:"Email"`
+	Password string `json:"Password"`
+	Dfp string `json:"dfp"`
+}
+
 
 func initRouter() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
-		email := r.PostFormValue("email")
-		password := r.PostFormValue("password")
-		dfp := r.PostFormValue("device-fingerprint")
+	
+		var u User
 
-		status, refreshtoken, accesstoken := login(email, password, dfp)
+		err := json.NewDecoder(r.Body).Decode(&u)
+
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		status, refreshtoken, accesstoken := login(u.Email, u.Password, u.Dfp)
 	/*
 	Login status codes
 	-1 = could not find user
@@ -65,7 +86,7 @@ func initRouter() {
 			Tfa: false,
 			Error: false,
 			Authorization_Code: authorization_code,
-			Message: "Failed to login. Please try again later"})
+			Message: ""})
 
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -96,13 +117,23 @@ func initRouter() {
 	0 = Successful
 	*/
 	mux.HandleFunc("/register", func(w http.ResponseWriter, r *http.Request) {
+
+		var u NewUser
 		w.Header().Set("Content-Type", "application/json")
 
-		name := r.PostFormValue("name")
-		email := r.PostFormValue("email")
-		password := r.PostFormValue("password")
+		err := json.NewDecoder(r.Body).Decode(&u)
 
-		status := register(name, email, password)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+    	defer r.Body.Close()
+
+		log.Printf("name: %s", u.Name)
+		log.Printf("email: %s", u.Email)
+		log.Printf("password: %s", u.Password)
+		status := register(u.Name, u.Email, u.Password)
 
 		switch status {
 		case -1:
@@ -147,14 +178,14 @@ func initRouter() {
 	})
 
 	mux.HandleFunc("/enable-tfa", func(w http.ResponseWriter, r *http.Request) {
-		//
 	})
 
 	mux.HandleFunc("/verify-tfa", func(w http.ResponseWriter, r *http.Request) {
-		//
+
 	})
 
 	mux.HandleFunc("/authorization", func(w http.ResponseWriter, r *http.Request) {
+
 		query := r.URL.Query()
 
 		code := query.Get("code")
@@ -181,7 +212,7 @@ func initRouter() {
 
 	mux.HandleFunc("/public-key", func(w http.ResponseWriter, r *http.Request) {
 
-		key := loadRSAPublicKeyFromPEM("public-key.pem")
+		key := loadRSAPublicKeyFromPEM("keys/public-key.pem")
 
 		if key == nil {
 			http.Error(w, "Failed to get public key", http.StatusNotFound)
@@ -209,5 +240,20 @@ func initRouter() {
 		//
 	})
 
-	http.ListenAndServe(":8000", mux)
+	http.ListenAndServe(":8000", corsMiddleware(mux))
+}
+
+func corsMiddleware(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Access-Control-Allow-Origin", "*")
+        w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+        if r.Method == http.MethodOptions {
+            w.WriteHeader(http.StatusOK)
+            return
+        }
+
+        next.ServeHTTP(w, r)
+    })
 }

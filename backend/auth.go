@@ -13,9 +13,10 @@ Login status codes
 0 = successful login
 */
 func login(email string, password string, devicefingerprint string) (int, string, string) {
-	p, err := readProfile[string](email)
+	p, err := readProfile("email", email)
 	if err != nil {
 		log.Printf("Failed to find user in db (%s)", email)
+		log.Print(err)
 		return -1, "", ""
 	}
 	
@@ -36,7 +37,8 @@ func login(email string, password string, devicefingerprint string) (int, string
 	}
 	refreshtoken, err := generateRandomToken(16)
 	if err != nil {
-		log.Printf("Failed to generate refresh token for user %s", email)
+		log.Printf("Failed to generate refresh token for user (%s)", email)
+		log.Print(err)
 		return  2, "", ""
 	}
 	err = updateProfile[string](p.Id, "refresh_token", refreshtoken)
@@ -87,7 +89,7 @@ func enableTfa(id int) bool {
 }
 
 func verifyTfa(id int, code int) int {
-	p, err := readProfile[int](id)
+	p, err := readProfile("id", id)
 	if err != nil {
 		return -1
 	}
@@ -96,7 +98,7 @@ func verifyTfa(id int, code int) int {
 		return 0
 	}
 
-	if p.Tfa_Code != code || p.Tfa_Code_Expiration <= time.Now().Unix() {
+	if *p.Tfa_Code != code || *p.Tfa_Code_Expiration <= time.Now().Unix() {
 		return 2
 	}
 	return 0

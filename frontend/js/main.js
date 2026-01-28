@@ -2,6 +2,7 @@ const body = document.querySelector("body");
 
 window.addEventListener("hashchange", hashChange);
 window.addEventListener("load", hashChange);
+window.addEventListener("submit", submit);
 
 function hashChange() {
     if (location.hash == "#register") {
@@ -73,3 +74,19 @@ function hashChange() {
         </p>
     </div>`
 }
+
+function submit(event) {
+    event.preventDefault();
+    switch (location.hash) {
+        case "#register":
+            register(
+                document.querySelector('input[name="email"]').value, 
+                document.querySelector('input[name="name"]').value,
+                document.querySelector('input[name="password"]').value)
+            break;
+        default:
+            login(
+                document.querySelector('input[name="email"]').value,
+                document.querySelector('input[name="password"]').value);
+    } 
+} 

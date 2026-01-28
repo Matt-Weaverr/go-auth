@@ -5,11 +5,11 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
-	"crypto/x509"
-	"io/ioutil"
 	"encoding/pem"
+	"io/ioutil"
 	"time"
 )
 
@@ -62,16 +62,18 @@ func generateJWT(id int, email string, name string) string {
 
 		payloadjson,_ := json.Marshal(payload)
 		payloadjsonstring := base64.RawURLEncoding.EncodeToString(payloadjson)
-		priv := loadRSAPrivateKeyFromPEM("private_key.pem")
+		headerjson, _ := json.Marshal(map[string]string{"alg": "RS256", "type": "JWT"})
+		headerstring := base64.RawURLEncoding.EncodeToString(headerjson)
+		priv := loadRSAPrivateKeyFromPEM("keys/private_key.pem")
 		if priv == nil {
 			return ""
 		}
-		signature, err := generateSignature([]byte(payloadjsonstring), priv)
+		signature, err := generateSignature([]byte(headerstring + "." + payloadjsonstring), priv)
 		if err != nil {
 			return ""
 		}
 		senc := base64.RawURLEncoding.EncodeToString(signature)
-		return payloadjsonstring + "." + senc
+		return headerstring + "." + payloadjsonstring + "." + senc
 	}
 	
 func generateSignature(data []byte, priv *rsa.PrivateKey) ([]byte, error) {

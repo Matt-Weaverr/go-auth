@@ -10,7 +10,7 @@ import (
 
 const DB_USER = "root"
 const DB_PASSWORD = "password"
-const DB_ADDRESS = "localhost"
+const DB_ADDRESS = "127.0.0.1"
 const DB_PORT = "3306"
 const DB_NAME = "sso"
 
@@ -21,18 +21,18 @@ type Profile struct {
 	Password_Hash string
 	Tfa_Enabled bool
 	Tfa_Verified bool
-	Tfa_Code int
-	Tfa_Code_Expiration int64
-	Reset_Password_Token string
-	Reset_Password_Expiration int64
-	Refresh_Token string
-	Refresh_Token_Expiration int64
+	Tfa_Code *int
+	Tfa_Code_Expiration *int64
+	Reset_Password_Token *string
+	Reset_Password_Expiration *int64
+	Refresh_Token *string
+	Refresh_Token_Expiration *int64
 }
 
 var db *sql.DB
 
 func initDB() {
-	dsn := DB_USER + ":" + DB_PASSWORD + "@tcp(" + DB_ADDRESS + ":" + DB_PORT + "/" + DB_NAME
+	dsn := DB_USER + ":" + DB_PASSWORD + "@tcp(" + DB_ADDRESS + ":" + DB_PORT + ")" + "/" + DB_NAME
 
 	d, err := sql.Open("mysql", dsn)
 	if err != nil {
@@ -47,7 +47,7 @@ func initDB() {
 
 	profiles_table := `
 	CREATE TABLE IF NOT EXISTS profiles
-        id INT AUTO_INCREMENT PRIMARY KEY,
+        (id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(100) NOT NULL,
         email VARCHAR(100) UNIQUE NOT NULL,
 		password_hash VARCHAR(100) NOT NULL,
@@ -59,18 +59,18 @@ func initDB() {
 		reset_password_expiration BIGINT,
 		refresh_Token VARCHAR(100),
 		refresh_token_expiration BIGINT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`
 
 	trusted_devices_table := `
 	CREATE TABLE IF NOT EXISTS trusted_devices
-		user_id int NOT NULL,
-		device_fingerprint VARCHAR(100) NOT NULL`
+		(user_id int NOT NULL,
+		device_fingerprint VARCHAR(100) NOT NULL)`
 
 	authorization_codes_table := `
 	CREATE TABLE IF NOT EXISTS authorization_codes_table
-		code VARCHAR(100) NOT NULL,
+		(code VARCHAR(100) NOT NULL,
 		access_token VARCHAR(1000) NOT NULL,
-		refresh_token INT NOT NULL`
+		refresh_token VARCHAR(1000) NOT NULL)`
 
 
 	if _, err = d.Exec(profiles_table); err != nil {
@@ -149,20 +149,18 @@ func deleteProfile(id int) {
 	log.Printf("Deleted profile with id %d", id)
 }
 
-func readProfile[T any](key any) (Profile, error) {
+func readProfile(indentifier string, value any) (Profile, error) {
 	var p Profile
 	var query string
-	switch any(key).(type) {
-	case int:
-		query = "SELECT * FROM profiles WHERE id = ? LIMIT 1"
-		break
-	case string:
-		query = "SELECT * FROM profiles WHERE email = ? LIMIT 1"
-		break
+	switch indentifier {
+	case "id":
+		query = "SELECT id, name, email, password_hash, tfa_enabled, tfa_verified, tfa_code, tfa_code_expiration, reset_password_token, reset_password_expiration, refresh_token, refresh_token_expiration FROM profiles WHERE id = ? LIMIT 1"
+	case "email":
+		query = "SELECT id, name, email, password_hash, tfa_enabled, tfa_verified, tfa_code, tfa_code_expiration, reset_password_token, reset_password_expiration, refresh_token, refresh_token_expiration FROM profiles WHERE email = ? LIMIT 1"
 	default:
-		return Profile{}, errors.New("Invalid key type. Cannot read db")
+		return Profile{}, errors.New("Invalid Identifier")
 	}
-	err := db.QueryRow(query, key).Scan(
+	err := db.QueryRow(query, value).Scan(
 		&p.Id,
 		&p.Name,
 		&p.Email,
@@ -185,7 +183,7 @@ func readProfile[T any](key any) (Profile, error) {
 
 func emailExists(email string) bool {
 	var exists bool
-	err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM profiles WHERE email = ? LIMIT 1)", email).Scan(&email)
+	err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM profiles WHERE email = ? LIMIT 1)", email).Scan(&exists)
 	if err != nil {
 		log.Printf("Unable to query profiles table: ", err)
 		return true
@@ -236,7 +234,7 @@ func getTokens(code string) (int, string, string) {
 		return -1, "", ""
 	}
 
-	return 0, access_token, refresh_token
+	return 0, refresh_token, access_token
 
 }
 
