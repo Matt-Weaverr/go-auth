@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -10,14 +11,22 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"io/ioutil"
+	"strings"
 	"time"
 )
+
+const SECRET_KEY = "awsjkfhasjkfsehfsefhsekjfjsehfklsef"
 
 type Payload struct {
 	Id int
 	Name string
 	Email string
 	Exp int64
+}
+
+type Pre_Auth struct {
+	User_Id int `json:"user-id"`
+	Exp int64 `json:"exp"`
 }
 
 
@@ -53,7 +62,7 @@ func loadRSAPrivateKeyFromPEM(path string) (*rsa.PrivateKey) {
 	return priv
 }
 
-func generateJWT(id int, email string, name string) string {
+func generateAccessJWT(id int, email string, name string) string {
 	payload := Payload{
 		Id:  id,
 		Name: name,
@@ -75,6 +84,50 @@ func generateJWT(id int, email string, name string) string {
 		senc := base64.RawURLEncoding.EncodeToString(signature)
 		return headerstring + "." + payloadjsonstring + "." + senc
 	}
+
+func generatePreAuthJWT(id int) string {
+	data := Pre_Auth{
+		User_Id: id,
+		Exp: time.Now().Add(5*time.Minute).Unix(),
+	}
+
+	datajson, _ := json.Marshal(data)
+	datastring := base64.RawURLEncoding.EncodeToString(datajson)
+
+	h := hmac.New(sha256.New, []byte(SECRET_KEY))
+	h.Write([]byte(datastring))
+	sig := base64.RawURLEncoding.EncodeToString(h.Sum(nil))
+
+	return datastring + "." + sig
+}
+
+func verifyPreAuthToken(token string) (bool, int) {
+	parts := strings.Split(token, ".")
+	if len(parts) != 2 {
+		return false, -1
+	}
+
+	sig := parts[1]
+	data := parts[0]
+
+	h := hmac.New(sha256.New, []byte(SECRET_KEY))
+	h.Write([]byte(data))
+	expectedsig := base64.RawURLEncoding.EncodeToString(h.Sum(nil))
+
+	if !hmac.Equal([]byte(sig), []byte(expectedsig)) {
+		return false, -1
+	}
+
+	datadec, _ := base64.RawURLEncoding.DecodeString(data)
+	var p Pre_Auth
+	json.Unmarshal(datadec, &p)
+
+	if time.Now().Unix() > p.Exp {
+		return false, -1
+	}
+
+	return true, p.User_Id
+}
 	
 func generateSignature(data []byte, priv *rsa.PrivateKey) ([]byte, error) {
 	hash := sha256.Sum256(data);

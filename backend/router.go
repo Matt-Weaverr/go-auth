@@ -2,14 +2,15 @@ package main
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
+	"time"
 )
 
 const ALLOWED_ORIGIN = "*"
 
 type AuthResponse struct {
-	Tfa bool `json:"tfa"`
+	Tfa_Required bool `json:"tfa-required"`
+	Pre_Auth_Token string `json:"pre-auth-token"`
 	Authorization_Code string `json:"authorization-code"`
 	Error bool `json:"error"`
 	Message string `json:"message"`
@@ -22,11 +23,30 @@ type NewUser struct {
 }
 
 type User struct {
-	Email string `json:"Email"`
-	Password string `json:"Password"`
+	Email string `json:"email"`
+	Password string `json:"password"`
 	Dfp string `json:"dfp"`
 }
 
+type Tfa struct {
+	Otp int `json:"otp"`
+	Token string `json:"token"`
+}
+
+type Tfa_Response struct {
+	Error bool `json:"error"`
+	Message string `json:"message"`
+}
+
+type Refresh_Request struct {
+	User_Id int `json:"user-id"`
+	Refresh_Token string `json:"refresh-token"`
+}
+
+type Refresh_Response struct {
+	Valid bool `json:"valid"`
+	Access_Token string `json:"access-token"`
+}
 
 func initRouter() {
 	mux := http.NewServeMux()
@@ -42,70 +62,86 @@ func initRouter() {
 			return
 		}
 
-		status, refreshtoken, accesstoken := login(u.Email, u.Password, u.Dfp)
-	/*
-	Login status codes
-	-1 = could not find user
-	1 = incorrect password
-	2 = refresh token failed
-	4 = tfa auth required
-	0 = successful login
-	*/
+		status, refreshtoken, accesstoken, preauthtoken := login(u.Email, u.Password, u.Dfp)
+		/*
+		Login status codes
+		-1 = could not find user
+		1 = incorrect password
+		2 = refresh token failed
+		4 = tfa auth required
+		0 = successful login
+		*/
 
-	authorization_code := generateAuthorization(accesstoken, refreshtoken)
+		authorization_code := generateAuthorization(accesstoken, refreshtoken)
 
-	w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Type", "application/json")
 
-	switch status {
-	case -1, 1:
-		err := json.NewEncoder(w).Encode(AuthResponse{
-			Tfa: false,
-			Authorization_Code: "",
-			Error: true,
-			Message: "Email or password is incorrect"})
+		switch status {
+		case -1, 1:
+			err := json.NewEncoder(w).Encode(AuthResponse{
+				Tfa_Required: false,
+				Pre_Auth_Token: "",
+				Authorization_Code: "",
+				Error: true,
+				Message: "Email or password is incorrect"})
 
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+		case 4:
+			err := json.NewEncoder(w).Encode(AuthResponse{
+				Tfa_Required: true,
+				Pre_Auth_Token: preauthtoken,
+				Error: false,
+				Authorization_Code: "",
+				Message: ""})
+
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+		case 0:
+			err := json.NewEncoder(w).Encode(AuthResponse{
+				Tfa_Required: false,
+				Pre_Auth_Token: "",
+				Error: false,
+				Authorization_Code: authorization_code,
+				Message: ""})
+
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			//this is used to authenticate on the edit user page
+			cookie := http.Cookie{
+				Name:     "refresh-token",
+				Value:    refreshtoken,
+				Expires:  time.Now().Add(24 * time.Hour),
+				Path:     "/",                           
+				HttpOnly: true,                           
+				Secure:   false,                          
+				SameSite: http.SameSiteLaxMode,          
+			}	
+
+			http.SetCookie(w, &cookie)
+
+		default:
+			err := json.NewEncoder(w).Encode(AuthResponse{
+				Tfa_Required: false,
+				Error: true,
+				Authorization_Code: "",
+				Message: "Failed to login. Please try again later"})
+
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
 		}
-
-	case 4:
-		err := json.NewEncoder(w).Encode(AuthResponse{
-			Tfa: true,
-			Error: false,
-			Authorization_Code: "",
-			Message: ""})
-
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-	case 0:
-		err := json.NewEncoder(w).Encode(AuthResponse{
-			Tfa: false,
-			Error: false,
-			Authorization_Code: authorization_code,
-			Message: ""})
-
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-	default:
-		err := json.NewEncoder(w).Encode(AuthResponse{
-			Tfa: false,
-			Error: true,
-			Authorization_Code: "",
-			Message: "Failed to login. Please try again later"})
-
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-	}
 	})
 
 
@@ -124,21 +160,18 @@ func initRouter() {
 		err := json.NewDecoder(r.Body).Decode(&u)
 
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
     	defer r.Body.Close()
 
-		log.Printf("name: %s", u.Name)
-		log.Printf("email: %s", u.Email)
-		log.Printf("password: %s", u.Password)
 		status := register(u.Name, u.Email, u.Password)
 
 		switch status {
 		case -1:
 			err := json.NewEncoder(w).Encode(AuthResponse{
-				Tfa: false,
+				Tfa_Required: false,
 				Error: true,
 				Authorization_Code: "",
 				Message: "Email already exists"})
@@ -150,7 +183,7 @@ func initRouter() {
 
 		case 0:
 			err := json.NewEncoder(w).Encode(AuthResponse{
-				Tfa: false,
+				Tfa_Required: false,
 				Error: false,
 				Authorization_Code: "",
 				Message: ""})
@@ -162,7 +195,7 @@ func initRouter() {
 
 		default:
 			err := json.NewEncoder(w).Encode(AuthResponse{
-				Tfa: false,
+				Tfa_Required: false,
 				Error: true,
 				Authorization_Code: "",
 				Message: "Failed to create new user. Please try again later"})
@@ -177,10 +210,47 @@ func initRouter() {
 
 	})
 
-	mux.HandleFunc("/enable-tfa", func(w http.ResponseWriter, r *http.Request) {
-	})
-
 	mux.HandleFunc("/verify-tfa", func(w http.ResponseWriter, r *http.Request) {
+
+		var tfa Tfa
+
+		w.Header().Set("Content-Type", "application/json")
+
+		err := json.NewDecoder(r.Body).Decode(&tfa)
+
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+    	defer r.Body.Close()
+
+		status, id := verifyPreAuthToken(tfa.Token)
+
+		if !status {
+			http.Error(w, "Could not verify pre auth", http.StatusForbidden)
+			return
+		}
+		
+		verification_status := verifyTfa(id, tfa.Otp)
+		
+		if verification_status == -1 {
+			http.Error(w, "Could not find user profile", http.StatusForbidden)
+			return
+		}
+
+		if verification_status == 2 {
+			json.NewEncoder(w).Encode(map[string]interface{
+				"error": true,
+				"message": "Invalid verification code",
+			})
+			return
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{
+			"error": false,
+			"message": "",
+		})
 
 	})
 
@@ -228,6 +298,33 @@ func initRouter() {
 		}
 	})
 
+	mux.HandleFunc("/refresh", func(w http.ResponseWriter, r *http.Request) {
+		var data Refresh_Request 
+
+		json.NewDecoder(r).Decode(&data)
+
+		p, err := readProfile("id", data.User_Id)
+
+		if err != nil {
+			http.Error(w, "Could not find profile", http.StatusForbidden)
+			return
+		}
+
+		if p.Refresh_Token != data.Refresh_Token {
+			json.NewEncoder(w).Encode(Refresh_Response{
+				Valid: false,
+				Access_Token: "" })
+			return
+		}
+
+		json.NewEncoder(w).Encode(Refresh_Response{
+			Valid: true,
+			Access_Token: generateAccessJWT(p.Id, p.Email, p.Name)
+		})
+
+
+	}
+
 	mux.HandleFunc("/reset-password", func(w http.ResponseWriter, r *http.Request) {
 		//
 	})
@@ -241,19 +338,4 @@ func initRouter() {
 	})
 
 	http.ListenAndServe(":8000", corsMiddleware(mux))
-}
-
-func corsMiddleware(next http.Handler) http.Handler {
-    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        w.Header().Set("Access-Control-Allow-Origin", "*")
-        w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-
-        if r.Method == http.MethodOptions {
-            w.WriteHeader(http.StatusOK)
-            return
-        }
-
-        next.ServeHTTP(w, r)
-    })
 }

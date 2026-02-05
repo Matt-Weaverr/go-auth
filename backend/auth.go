@@ -12,45 +12,56 @@ Login status codes
 4 = tfa auth required
 0 = successful login
 */
-func login(email string, password string, devicefingerprint string) (int, string, string) {
+func login(email string, password string, devicefingerprint string) (int, string, string, string) {
 	p, err := readProfile("email", email)
 	if err != nil {
 		log.Printf("Failed to find user in db (%s)", email)
 		log.Print(err)
-		return -1, "", ""
+		return -1, "", "", ""
 	}
 	
 	if !checkPassword(password, p.Password_Hash) {
 		log.Printf("Failed login attempt (%s)", email)
-		return 1, "", ""
+		return 1, "", "", ""
 	}
 
-	if p.Tfa_Enabled && !isTrustedDevice(p.Id, devicefingerprint){
-		err = updateProfile[int](p.Id, "tfa_code", generateRandomInt(100000, 999999))
-		err = updateProfile[int64](p.Id, "tfa_code_expiration", time.Now().Add(5*time.Minute).Unix())
+	if p.Tfa_Enabled && !isTrustedDevice(p.Id, devicefingerprint) {
+		status := sendTfa(p.Id)
 
-		if err != nil {
+		if !status {
 			log.Printf("Could not update user tfa code in db %s", p.Email)
-			return -1, "", ""
+			return -1, "", "", ""
 		}
-		return 4, "", ""
+
+		return 4, "", "", generatePreAuthJWT(p.Id)
 	}
+
+	status, refreshtoken, accesstoken := generateAuthTokens(p.Id, p.Email, p.Name)
+
+	if !status {
+		return 2, "", "", ""
+	}
+
+	return 0, refreshtoken, accesstoken, ""
+}
+
+func generateAuthTokens(id int, email string, name string) (bool, string, string) {
 	refreshtoken, err := generateRandomToken(16)
 	if err != nil {
 		log.Printf("Failed to generate refresh token for user (%s)", email)
 		log.Print(err)
-		return  2, "", ""
+		return  false, "", ""
 	}
-	err = updateProfile[string](p.Id, "refresh_token", refreshtoken)
-	err = updateProfile[int64](p.Id, "refresh_token_expiration", time.Now().Add(168*time.Hour).Unix())
+	err = updateProfile(id, "refresh_token", refreshtoken)
+	err = updateProfile(id, "refresh_token_expiration", time.Now().Add(168*time.Hour).Unix())
 
 	if err != nil {
-		return 2, "", ""
+		return false, "", ""
 	}
 
-	accesstoken := generateJWT(p.Id, p.Email, p.Name)
+	accesstoken := generateAccessJWT(id, email, name)
 
-	return 0, refreshtoken, accesstoken
+	return true, refreshtoken, accesstoken
 }
 
 /*
@@ -77,9 +88,9 @@ func register(name string, email string, password string) int {
 	return 0
 }
 
-func enableTfa(id int) bool {
-	err := updateProfile[int](id, "tfa_code", generateRandomInt(100000, 999999))
-	err = updateProfile[int64](id, "tfa_code_expiration", time.Now().Add(5*time.Minute).Unix())
+func sendTfa(id int) bool {
+	err := updateProfile(id, "tfa_code", generateRandomInt(100000, 999999))
+	err = updateProfile(id, "tfa_code_expiration", time.Now().Add(5*time.Minute).Unix())
 
 	if err != nil {
 		log.Printf("Could not update user tfa code in db for id %d", id)

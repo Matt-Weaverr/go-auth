@@ -113,7 +113,7 @@ func insertProfile(email string, passwordhash string, name string) bool {
 		return true
 }
 
-func updateProfile[T any](id int, column string, value T) error {
+func updateProfile(id int, column string, value any) error {
 	stmt, err := db.Prepare("UPDATE profiles SET " + column + " = " + "? WHERE id = ?")
 
 	if err != nil {
@@ -128,7 +128,7 @@ func updateProfile[T any](id int, column string, value T) error {
 		log.Printf("Error updating profile: ", err)
 		return err
 	}
-	log.Printf("Updated profile with id %d: %s = %T", id, column, value)
+	log.Printf("Updated profile with id %d: %s = %v", id, column, value)
 	return nil
 }
 
@@ -166,7 +166,6 @@ func readProfile(indentifier string, value any) (Profile, error) {
 		&p.Email,
 		&p.Password_Hash,
 		&p.Tfa_Enabled,
-		&p.Tfa_Verified,
 		&p.Tfa_Code,
 		&p.Tfa_Code_Expiration,
 		&p.Reset_Password_Token,
