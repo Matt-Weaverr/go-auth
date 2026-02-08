@@ -6,12 +6,10 @@ import (
 	"time"
 )
 
-const ALLOWED_ORIGIN = "*"
-
 type AuthResponse struct {
-	Tfa_Required bool `json:"tfa-required"`
-	Pre_Auth_Token string `json:"pre-auth-token"`
-	Authorization_Code string `json:"authorization-code"`
+	Tfa_Required bool `json:"tfa_required"`
+	Pre_Auth_Token string `json:"pre-auth_token"`
+	Authorization_Code string `json:"authorization_code"`
 	Error bool `json:"error"`
 	Message string `json:"message"`
 }
@@ -25,6 +23,7 @@ type NewUser struct {
 type User struct {
 	Email string `json:"email"`
 	Password string `json:"password"`
+	Remember_Device bool `json:"remember_device"`
 	Dfp string `json:"dfp"`
 }
 
@@ -40,22 +39,26 @@ type Tfa_Response struct {
 
 type Refresh_Request struct {
 	User_Id int `json:"user-id"`
-	Refresh_Token string `json:"refresh-token"`
+	Refresh_Token string `json:"refresh_token"`
 }
 
 type Refresh_Response struct {
 	Valid bool `json:"valid"`
-	Access_Token string `json:"access-token"`
+	Access_Token string `json:"access_token"`
 }
 
 func initRouter() {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/login", func(w http.ResponseWriter, r *http.Request) {
 	
 		var u User
 
 		err := json.NewDecoder(r.Body).Decode(&u)
+		
+		defer r.Body.Close()
+
+
 
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -63,8 +66,8 @@ func initRouter() {
 		}
 
 		status, refreshtoken, accesstoken, preauthtoken := login(u.Email, u.Password, u.Dfp)
+
 		/*
-		Login status codes
 		-1 = could not find user
 		1 = incorrect password
 		2 = refresh token failed
@@ -104,6 +107,21 @@ func initRouter() {
 			}
 
 		case 0:
+			if u.Remember_Device {
+				//update db
+			}
+			//this is used to authenticate on the edit user page
+			cookie := http.Cookie{
+				Name:     "refresh-token",
+				Value:    refreshtoken,
+				Expires:  time.Now().Add(24 * time.Hour),
+				Path:     "/",                           
+				HttpOnly: true,                           
+				Secure:   false,                          
+				SameSite: http.SameSiteLaxMode,
+			}	
+			http.SetCookie(w, &cookie)
+
 			err := json.NewEncoder(w).Encode(AuthResponse{
 				Tfa_Required: false,
 				Pre_Auth_Token: "",
@@ -115,19 +133,6 @@ func initRouter() {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-
-			//this is used to authenticate on the edit user page
-			cookie := http.Cookie{
-				Name:     "refresh-token",
-				Value:    refreshtoken,
-				Expires:  time.Now().Add(24 * time.Hour),
-				Path:     "/",                           
-				HttpOnly: true,                           
-				Secure:   false,                          
-				SameSite: http.SameSiteLaxMode,          
-			}	
-
-			http.SetCookie(w, &cookie)
 
 		default:
 			err := json.NewEncoder(w).Encode(AuthResponse{
@@ -152,7 +157,7 @@ func initRouter() {
 	2 = couldnt insert into db
 	0 = Successful
 	*/
-	mux.HandleFunc("/register", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/register", func(w http.ResponseWriter, r *http.Request) {
 
 		var u NewUser
 		w.Header().Set("Content-Type", "application/json")
@@ -210,7 +215,7 @@ func initRouter() {
 
 	})
 
-	mux.HandleFunc("/verify-tfa", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/verify-tfa", func(w http.ResponseWriter, r *http.Request) {
 
 		var tfa Tfa
 
@@ -240,21 +245,21 @@ func initRouter() {
 		}
 
 		if verification_status == 2 {
-			json.NewEncoder(w).Encode(map[string]interface{
+			json.NewEncoder(w).Encode(map[string]any{
 				"error": true,
 				"message": "Invalid verification code",
 			})
 			return
 		}
 
-		json.NewEncoder(w).Encode(map[string]interface{
+		json.NewEncoder(w).Encode(map[string]any{
 			"error": false,
 			"message": "",
 		})
 
 	})
 
-	mux.HandleFunc("/authorization", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/authorization", func(w http.ResponseWriter, r *http.Request) {
 
 		query := r.URL.Query()
 
@@ -280,7 +285,7 @@ func initRouter() {
 				
 	})
 
-	mux.HandleFunc("/public-key", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/public-key", func(w http.ResponseWriter, r *http.Request) {
 
 		key := loadRSAPublicKeyFromPEM("keys/public-key.pem")
 
@@ -298,10 +303,12 @@ func initRouter() {
 		}
 	})
 
-	mux.HandleFunc("/refresh", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/refresh", func(w http.ResponseWriter, r *http.Request) {
 		var data Refresh_Request 
 
-		json.NewDecoder(r).Decode(&data)
+		json.NewDecoder(r.Body).Decode(&data)
+
+		defer r.Body.Close()
 
 		p, err := readProfile("id", data.User_Id)
 
@@ -310,30 +317,31 @@ func initRouter() {
 			return
 		}
 
-		if p.Refresh_Token != data.Refresh_Token {
+		if *p.Refresh_Token != data.Refresh_Token {
 			json.NewEncoder(w).Encode(Refresh_Response{
 				Valid: false,
-				Access_Token: "" })
+				Access_Token: "", 
+			})
 			return
 		}
 
 		json.NewEncoder(w).Encode(Refresh_Response{
 			Valid: true,
-			Access_Token: generateAccessJWT(p.Id, p.Email, p.Name)
+			Access_Token: generateAccessJWT(p.Id, p.Email, p.Name),
 		})
 
 
-	}
+	})
 
-	mux.HandleFunc("/reset-password", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/reset-password", func(w http.ResponseWriter, r *http.Request) {
 		//
 	})
 
-	mux.HandleFunc("/user", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/user", func(w http.ResponseWriter, r *http.Request) {
 		//
 	})
 
-	mux.HandleFunc("/update", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/update", func(w http.ResponseWriter, r *http.Request) {
 		//
 	})
 

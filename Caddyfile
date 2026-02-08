@@ -1,0 +1,10 @@
+https://localhost:443 {
+	handle /api/* {
+		reverse_proxy localhost:8000
+	}
+
+	handle {
+		root * ./frontend
+		file_server
+	}
+}

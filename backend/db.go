@@ -20,7 +20,6 @@ type Profile struct {
 	Email string
 	Password_Hash string
 	Tfa_Enabled bool
-	Tfa_Verified bool
 	Tfa_Code *int
 	Tfa_Code_Expiration *int64
 	Reset_Password_Token *string
@@ -52,7 +51,6 @@ func initDB() {
         email VARCHAR(100) UNIQUE NOT NULL,
 		password_hash VARCHAR(100) NOT NULL,
 		tfa_enabled BOOLEAN DEFAULT 0,
-		tfa_verified BOOLEAN DEFAULT 0,
 		tfa_code INT,
 		tfa_code_expiration BIGINT,
 		reset_password_token INT,
@@ -154,9 +152,9 @@ func readProfile(indentifier string, value any) (Profile, error) {
 	var query string
 	switch indentifier {
 	case "id":
-		query = "SELECT id, name, email, password_hash, tfa_enabled, tfa_verified, tfa_code, tfa_code_expiration, reset_password_token, reset_password_expiration, refresh_token, refresh_token_expiration FROM profiles WHERE id = ? LIMIT 1"
+		query = "SELECT id, name, email, password_hash, tfa_enabled, tfa_code, tfa_code_expiration, reset_password_token, reset_password_expiration, refresh_token, refresh_token_expiration FROM profiles WHERE id = ? LIMIT 1"
 	case "email":
-		query = "SELECT id, name, email, password_hash, tfa_enabled, tfa_verified, tfa_code, tfa_code_expiration, reset_password_token, reset_password_expiration, refresh_token, refresh_token_expiration FROM profiles WHERE email = ? LIMIT 1"
+		query = "SELECT id, name, email, password_hash, tfa_enabled, tfa_code, tfa_code_expiration, reset_password_token, reset_password_expiration, refresh_token, refresh_token_expiration FROM profiles WHERE email = ? LIMIT 1"
 	default:
 		return Profile{}, errors.New("Invalid Identifier")
 	}

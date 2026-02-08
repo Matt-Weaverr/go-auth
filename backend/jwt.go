@@ -25,7 +25,7 @@ type Payload struct {
 }
 
 type Pre_Auth struct {
-	User_Id int `json:"user-id"`
+	User_Id int `json:"user_id"`
 	Exp int64 `json:"exp"`
 }
 

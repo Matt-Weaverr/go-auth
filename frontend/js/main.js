@@ -53,6 +53,21 @@ function hashChange() {
     </div>`
     return;
     }
+    if (location.hash == "#tfa-verification") {
+    body.innerHTML = `
+        <div class="container">
+            <h1>Verify login</h1>
+            <p>Enter the code sent to your email</p>
+            <form>
+                <span>
+                    <label>Code</label>
+                    <input type="text" name="otp" placeholder="Code" required />
+                </span>
+                <button type="submit">Submit</button>
+            </form>
+    </div>`
+    return;
+    }
     body.innerHTML = `
     <div class="container">
         <h1>Login</h1>

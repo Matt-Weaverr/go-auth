@@ -1,12 +1,14 @@
-const BACKEND_URL = "http://127.0.0.1:8000";
+const CACHE = {}
 
 async function login(email, password) {
-    let response = await fetch(`${BACKEND_URL}/login`, {
+    let response = await fetch('/api/login', {
         method: 'POST',
+        credentials: 'include',
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({email: email, password: password})
+
+        body: JSON.stringify({email: email, password: password, remember_device: false, dfp: ""})
     }
     )
 
@@ -19,20 +21,22 @@ async function login(email, password) {
 
     if (data.error) {
         console.log(data.message);
-        return
+        return;
     }
 
-    if (data.tfa) {
-        console.log('tfa required');
-        return
+    if (data.tfa_required) {
+        CACHE.pre_auth_token = data.pre_auth_token;
+        window.location.hash = '#tfa-verification';
+        return;
     }
 
-    //redirect
+    let callbackurl = new URLSearchParams(window.location.search).get('callback');
+    window.location.href = `${callbackurl}?code=${authorization_code}`;
 
 }
 
 async function register(email, name, password) {
-    let response = await fetch(`${BACKEND_URL}/register`, {
+    let response = await fetch('/api/register', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -51,3 +55,26 @@ async function register(email, name, password) {
     }
     login(email, password);
 }
+
+async function verifyTfa(otp) {
+    let response = await fetch('/api/verify-tfa', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({otp: otp, token: CACHE.pre_auth_token})
+    })
+    if (response.status !== 200) {
+        //fail
+        return
+    }
+    let data = await response.json();
+    if (data.error) {
+        console.log(data.message);
+        return;
+    }
+
+
+}
+
+
