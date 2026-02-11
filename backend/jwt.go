@@ -13,9 +13,9 @@ import (
 	"io/ioutil"
 	"strings"
 	"time"
+	"os"
 )
 
-const SECRET_KEY = "awsjkfhasjkfsehfsefhsekjfjsehfklsef"
 
 type Payload struct {
 	Id int
@@ -94,7 +94,7 @@ func generatePreAuthJWT(id int) string {
 	datajson, _ := json.Marshal(data)
 	datastring := base64.RawURLEncoding.EncodeToString(datajson)
 
-	h := hmac.New(sha256.New, []byte(SECRET_KEY))
+	h := hmac.New(sha256.New, []byte(os.Getenv("SECRET_KEY")))
 	h.Write([]byte(datastring))
 	sig := base64.RawURLEncoding.EncodeToString(h.Sum(nil))
 
@@ -110,7 +110,7 @@ func verifyPreAuthToken(token string) (bool, int) {
 	sig := parts[1]
 	data := parts[0]
 
-	h := hmac.New(sha256.New, []byte(SECRET_KEY))
+	h := hmac.New(sha256.New, []byte(os.Getenv("SECRET_KEY")))
 	h.Write([]byte(data))
 	expectedsig := base64.RawURLEncoding.EncodeToString(h.Sum(nil))
 

@@ -4,15 +4,10 @@ import (
 	"database/sql"
 	"log"
 	"errors"
+	"os"
 
 	_ "github.com/go-sql-driver/mysql"
 )
-
-const DB_USER = "root"
-const DB_PASSWORD = "password"
-const DB_ADDRESS = "127.0.0.1"
-const DB_PORT = "3306"
-const DB_NAME = "sso"
 
 type Profile struct {
 	Id int
@@ -31,7 +26,7 @@ type Profile struct {
 var db *sql.DB
 
 func initDB() {
-	dsn := DB_USER + ":" + DB_PASSWORD + "@tcp(" + DB_ADDRESS + ":" + DB_PORT + ")" + "/" + DB_NAME
+	dsn := os.Getenv("DB_USER") + ":" + os.Getenv("DB_PASSWORD") + "@tcp(" + os.Getenv("DB_HOST") + ":" + os.Getenv("DB_PORT") + ")" + "/" + os.Getenv("DB_NAME") 
 
 	d, err := sql.Open("mysql", dsn)
 	if err != nil {
