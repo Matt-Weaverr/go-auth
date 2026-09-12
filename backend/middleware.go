@@ -1,22 +1,20 @@
 package main
 
+
 import (
 	"net/http"
 )
 
-const FRONTEND_URL = "http://site1.localhost"
+func AuthMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cookie, err := r.Cookie("refresh_token")
+		if err != nil || cookie.Value == "" {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
 
-func corsMiddleware(next http.Handler) http.Handler {
-    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        w.Header().Set("Access-Control-Allow-Origin", FRONTEND_URL)
-        w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-        w.Header().Set("Access-Control-Allow-Credentials", "true")
-        if r.Method == http.MethodOptions {
-            w.WriteHeader(http.StatusOK)
-            return
-        }
+		// You can add additional logic here to validate the refresh token if needed
 
-        next.ServeHTTP(w, r)
-    })
+		next.ServeHTTP(w, r)
+	})
 }

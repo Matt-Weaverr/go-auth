@@ -2,39 +2,38 @@ package main
 
 import (
 	"database/sql"
-	"log"
 	"errors"
+	"log"
 	"os"
 
 	_ "github.com/go-sql-driver/mysql"
 )
 
 type Profile struct {
-	Id int
-	Name string
-	Email string
-	Password_Hash string
-	Tfa_Enabled bool
-	Tfa_Code *int
-	Tfa_Code_Expiration *int64
-	Reset_Password_Token *string
+	Id                        int
+	Name                      string
+	Email                     string
+	Password_Hash             string
+	Tfa_Enabled               bool
+	Tfa_Code                  *int
+	Tfa_Code_Expiration       *int64
+	Reset_Password_Token      *string
 	Reset_Password_Expiration *int64
-	Refresh_Token *string
-	Refresh_Token_Expiration *int64
+	Refresh_Token             *string
+	Refresh_Token_Expiration  *int64
 }
 
 var db *sql.DB
 
 func initDB() {
-	dsn := os.Getenv("DB_USER") + ":" + os.Getenv("DB_PASSWORD") + "@tcp(" + os.Getenv("DB_HOST") + ":" + os.Getenv("DB_PORT") + ")" + "/" + os.Getenv("DB_NAME") 
-
+	dsn := os.Getenv("DB_USER") + ":" + os.Getenv("DB_PASSWORD") + "@tcp(" + os.Getenv("DB_HOST") + ":" + os.Getenv("DB_PORT") + ")" + "/" + os.Getenv("DB_NAME")
 	d, err := sql.Open("mysql", dsn)
 	if err != nil {
 		log.Fatal("Could not open database: ", err)
 	}
 
 	if err := d.Ping(); err != nil {
-    log.Fatal("Database unreachable: ", err)
+		log.Fatal("Database unreachable: ", err)
 	}
 
 	log.Printf("Connected to database")
@@ -48,7 +47,7 @@ func initDB() {
 		tfa_enabled BOOLEAN DEFAULT 0,
 		tfa_code INT,
 		tfa_code_expiration BIGINT,
-		reset_password_token INT,
+		reset_password_token VARCHAR(100),
 		reset_password_expiration BIGINT,
 		refresh_Token VARCHAR(100),
 		refresh_token_expiration BIGINT,
@@ -65,7 +64,6 @@ func initDB() {
 		access_token VARCHAR(1000) NOT NULL,
 		refresh_token VARCHAR(1000) NOT NULL)`
 
-
 	if _, err = d.Exec(profiles_table); err != nil {
 		log.Fatal("Unable to create profiles_table")
 	}
@@ -74,43 +72,40 @@ func initDB() {
 		log.Fatal("Unable to create authorization_codes_table table")
 	}
 
-	if _,err = d.Exec(trusted_devices_table); err != nil {
+	if _, err = d.Exec(trusted_devices_table); err != nil {
 		log.Fatal("Unable to create trusted_devices table")
 	}
-
 
 	db = d
 	log.Printf("Successfully initialized database")
 }
 
-
 func insertProfile(email string, passwordhash string, name string) bool {
-		
-		stmt, err := db.Prepare("INSERT INTO profiles (name, email, password_hash) VALUES (?,?,?)")
 
-		if err != nil {
-			log.Printf("Error preparing insert statement: ", err)
-			return false
-		}
-		defer stmt.Close()
+	stmt, err := db.Prepare("INSERT INTO profiles (name, email, password_hash) VALUES (?,?,?)")
 
+	if err != nil {
+		log.Printf("Error preparing insert statement: %v", err)
+		return false
+	}
+	defer stmt.Close()
 
-		_, err = stmt.Exec(name, email, passwordhash)
+	_, err = stmt.Exec(name, email, passwordhash)
 
-		if err != nil {
-			log.Printf("Error inserting new profile to db: ", err)
-			return false
-		}
-		
-		log.Printf("New profile created: %s, %s", name, email)
-		return true
+	if err != nil {
+		log.Printf("Error inserting new profile to db: %v", err)
+		return false
+	}
+
+	log.Printf("New profile created: %s, %s", name, email)
+	return true
 }
 
 func updateProfile(id int, column string, value any) error {
 	stmt, err := db.Prepare("UPDATE profiles SET " + column + " = " + "? WHERE id = ?")
 
 	if err != nil {
-		log.Printf("Error preparing update statement: ", err)
+		log.Printf("Error preparing update statement: %v", err)
 		return err
 	}
 	defer stmt.Close()
@@ -118,7 +113,7 @@ func updateProfile(id int, column string, value any) error {
 	_, err = stmt.Exec(value, id)
 
 	if err != nil {
-		log.Printf("Error updating profile: ", err)
+		log.Printf("Error updating profile: %v", err)
 		return err
 	}
 	log.Printf("Updated profile with id %d: %s = %v", id, column, value)
@@ -126,10 +121,10 @@ func updateProfile(id int, column string, value any) error {
 }
 
 func deleteProfile(id int) {
-		stmt, err := db.Prepare("DELETE FROM profiles WHERE id = ?")
+	stmt, err := db.Prepare("DELETE FROM profiles WHERE id = ?")
 
 	if err != nil {
-		log.Printf("Error preparing delete statement: ", err)
+		log.Printf("Error preparing delete statement: %v", err)
 		return
 	}
 	defer stmt.Close()
@@ -137,7 +132,7 @@ func deleteProfile(id int) {
 	_, err = stmt.Exec(id)
 
 	if err != nil {
-		log.Printf("Error deleting profile: ", err)
+		log.Printf("Error deleting profile: %v", err)
 	}
 	log.Printf("Deleted profile with id %d", id)
 }
@@ -177,7 +172,7 @@ func emailExists(email string) bool {
 	var exists bool
 	err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM profiles WHERE email = ? LIMIT 1)", email).Scan(&exists)
 	if err != nil {
-		log.Printf("Unable to query profiles table: ", err)
+		log.Printf("Unable to query profiles table: %v", err)
 		return true
 	}
 	return exists
@@ -186,33 +181,33 @@ func emailExists(email string) bool {
 func isTrustedDevice(user_id int, fingerprint string) bool {
 	var trusted bool
 	err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM trusted_devices WHERE user_id = ? AND device_fingerprint = ?)",
-	 user_id, 
-	 fingerprint).Scan(&trusted)
+		user_id,
+		fingerprint).Scan(&trusted)
 
-	 if err != nil {
-		log.Printf("Unable to query trusted_devices table: ", err)
+	if err != nil {
+		log.Printf("Unable to query trusted_devices table: %v", err)
 		return false
-	 }
-	 return trusted
+	}
+	return trusted
 }
 
 func generateAuthorization(accesstoken string, refreshtoken string) string {
-		stmt, err := db.Prepare("INSERT INTO authorization_codes_table (code, access_token, refresh_token) VALUES (?,?,?)")
+	stmt, err := db.Prepare("INSERT INTO authorization_codes_table (code, access_token, refresh_token) VALUES (?,?,?)")
 
-		if err != nil {
-			log.Printf("Error preparing insert statement: ", err)
-			return ""
-		}
-		defer stmt.Close()
+	if err != nil {
+		log.Printf("Error preparing insert statement: %v", err)
+		return ""
+	}
+	defer stmt.Close()
 
-		authorizationcode, err := generateRandomToken(16)
-		_, err = stmt.Exec(authorizationcode, accesstoken, refreshtoken)
+	authorizationcode, err := generateRandomToken(16)
+	_, err = stmt.Exec(authorizationcode, accesstoken, refreshtoken)
 
-		if err != nil {
-			log.Printf("Error generating authorization code: ", err)
-			return ""
-		}
-		return authorizationcode
+	if err != nil {
+		log.Printf("Error generating authorization code: %v", err)
+		return ""
+	}
+	return authorizationcode
 }
 
 func getTokens(code string) (int, string, string) {
@@ -222,11 +217,10 @@ func getTokens(code string) (int, string, string) {
 	err := db.QueryRow("SELECT access_token, refresh_token FROM authorization_codes_table WHERE code = ?", code).Scan(&access_token, &refresh_token)
 
 	if err != nil {
-		log.Printf("Could not fetch tokens from db: ", err)
+		log.Printf("Could not fetch tokens from db: %v", err)
 		return -1, "", ""
 	}
 
 	return 0, refresh_token, access_token
 
 }
-

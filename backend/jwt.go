@@ -1,11 +1,7 @@
 package main
 
 import (
-	"crypto"
-	"crypto/hmac"
-	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -13,24 +9,21 @@ import (
 	"io/ioutil"
 	"strings"
 	"time"
-	"os"
 )
 
-
 type Payload struct {
-	Id int
-	Name string
+	Id    int
+	Name  string
 	Email string
-	Exp int64
+	Exp   int64
 }
 
 type Pre_Auth struct {
-	User_Id int `json:"user_id"`
-	Exp int64 `json:"exp"`
+	User_Id int   `json:"user_id"`
+	Exp     int64 `json:"exp"`
 }
 
-
-func loadRSAPublicKeyFromPEM(path string) ([]byte) {
+func loadRSAPublicKeyFromPEM(path string) []byte {
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil
@@ -38,7 +31,7 @@ func loadRSAPublicKeyFromPEM(path string) ([]byte) {
 	return data
 }
 
-func loadRSAPrivateKeyFromPEM(path string) (*rsa.PrivateKey) {
+func loadRSAPrivateKeyFromPEM(path string) *rsa.PrivateKey {
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil
@@ -64,75 +57,85 @@ func loadRSAPrivateKeyFromPEM(path string) (*rsa.PrivateKey) {
 
 func generateAccessJWT(id int, email string, name string) string {
 	payload := Payload{
-		Id:  id,
-		Name: name,
+		Id:    id,
+		Name:  name,
 		Email: email,
-		Exp: time.Now().Add(15*time.Minute).Unix()}
-
-		payloadjson,_ := json.Marshal(payload)
-		payloadjsonstring := base64.RawURLEncoding.EncodeToString(payloadjson)
-		headerjson, _ := json.Marshal(map[string]string{"alg": "RS256", "type": "JWT"})
-		headerstring := base64.RawURLEncoding.EncodeToString(headerjson)
-		priv := loadRSAPrivateKeyFromPEM("keys/private_key.pem")
-		if priv == nil {
-			return ""
-		}
-		signature, err := generateSignature([]byte(headerstring + "." + payloadjsonstring), priv)
-		if err != nil {
-			return ""
-		}
-		senc := base64.RawURLEncoding.EncodeToString(signature)
-		return headerstring + "." + payloadjsonstring + "." + senc
+		Exp:   time.Now().Add(15 * time.Minute).Unix(),
 	}
 
-func generatePreAuthJWT(id int) string {
-	data := Pre_Auth{
-		User_Id: id,
-		Exp: time.Now().Add(5*time.Minute).Unix(),
+	payloadjson, _ := json.Marshal(payload)
+	payloadjsonstring := base64.RawURLEncoding.EncodeToString(payloadjson)
+	headerjson, _ := json.Marshal(map[string]string{"alg": "RS256", "type": "JWT"})
+	headerstring := base64.RawURLEncoding.EncodeToString(headerjson)
+	priv := loadRSAPrivateKeyFromPEM("keys/private_key.pem")
+	if priv == nil {
+		return ""
 	}
-
-	datajson, _ := json.Marshal(data)
-	datastring := base64.RawURLEncoding.EncodeToString(datajson)
-
-	h := hmac.New(sha256.New, []byte(os.Getenv("SECRET_KEY")))
-	h.Write([]byte(datastring))
-	sig := base64.RawURLEncoding.EncodeToString(h.Sum(nil))
-
-	return datastring + "." + sig
+	signature, err := generateSignature([]byte(headerstring+"."+payloadjsonstring), priv)
+	if err != nil {
+		return ""
+	}
+	senc := base64.RawURLEncoding.EncodeToString(signature)
+	return headerstring + "." + payloadjsonstring + "." + senc
 }
 
-func verifyPreAuthToken(token string) (bool, int) {
+func parseRSAPublicKey(data []byte) *rsa.PublicKey {
+	block, _ := pem.Decode(data)
+	if block == nil {
+		return nil
+	}
+
+	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil
+	}
+
+	rsaKey, ok := pub.(*rsa.PublicKey)
+	if !ok {
+		return nil
+	}
+
+	return rsaKey
+}
+
+func verifyAccessJWT(token string) (Payload, bool) {
 	parts := strings.Split(token, ".")
-	if len(parts) != 2 {
-		return false, -1
+	if len(parts) != 3 {
+		return Payload{}, false
 	}
 
-	sig := parts[1]
-	data := parts[0]
-
-	h := hmac.New(sha256.New, []byte(os.Getenv("SECRET_KEY")))
-	h.Write([]byte(data))
-	expectedsig := base64.RawURLEncoding.EncodeToString(h.Sum(nil))
-
-	if !hmac.Equal([]byte(sig), []byte(expectedsig)) {
-		return false, -1
+	payloadBytes, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return Payload{}, false
 	}
 
-	datadec, _ := base64.RawURLEncoding.DecodeString(data)
-	var p Pre_Auth
-	json.Unmarshal(datadec, &p)
-
-	if time.Now().Unix() > p.Exp {
-		return false, -1
+	var payload Payload
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		return Payload{}, false
 	}
 
-	return true, p.User_Id
+	if time.Now().Unix() > payload.Exp {
+		return Payload{}, false
+	}
+
+	publicKeyData := loadRSAPublicKeyFromPEM("keys/public_key.pem")
+	if publicKeyData == nil {
+		return Payload{}, false
+	}
+
+	publicKey := parseRSAPublicKey(publicKeyData)
+	if publicKey == nil {
+		return Payload{}, false
+	}
+
+	signature, err := base64.RawURLEncoding.DecodeString(parts[2])
+	if err != nil {
+		return Payload{}, false
+	}
+
+	if !verifySignature([]byte(parts[0]+"."+parts[1]), signature, publicKey) {
+		return Payload{}, false
+	}
+
+	return payload, true
 }
-	
-func generateSignature(data []byte, priv *rsa.PrivateKey) ([]byte, error) {
-	hash := sha256.Sum256(data);
-	return rsa.SignPKCS1v15(rand.Reader, priv, crypto.SHA256, hash[:])
-}
-
-
-
