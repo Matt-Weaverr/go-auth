@@ -86,7 +86,7 @@ func generateSignature(data []byte, key any) ([]byte, error) {
 	}
 }
 
-func verifySignature(data, signature []byte, key any) bool {
+func verifySignature(data []byte, signature []byte, key any) bool {
 	switch key := key.(type) {
 	case *rsa.PublicKey:
 		if key == nil {

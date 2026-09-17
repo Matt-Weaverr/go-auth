@@ -1,30 +1,10 @@
+import { displayLoader, displayNotification, displayModel, displayModelLoader } from './ui.js';
+
 const CACHE = {
-    pre_auth_token: ''
+    pre_auth_token: '',
 };
 
-function getStoredTokens() {
-    return {
-        accessToken: localStorage.getItem('access_token') || CACHE.access_token,
-        refreshToken: localStorage.getItem('refresh_token') || CACHE.refresh_token,
-    };
-}
-
-function setStoredTokens(accessToken, refreshToken) {
-    CACHE.access_token = accessToken;
-    CACHE.refresh_token = refreshToken;
-    localStorage.setItem('access_token', accessToken);
-    localStorage.setItem('refresh_token', refreshToken);
-}
-
-function clearStoredTokens() {
-    CACHE.access_token = '';
-    CACHE.refresh_token = '';
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-}
-
-
-async function login(email, password) {
+export async function login(email, password) {
     displayLoader(true);
     const response = await fetch('/api/login', {
         method: 'POST',
@@ -53,11 +33,10 @@ async function login(email, password) {
         window.location.hash = '#tfa-verification';
         return;
     }
-
-    redirectToCallback();
+    redirectToCallback(data.authorization_code);
 }
 
-async function register(email, name, password) {
+export async function register(email, name, password) {
     displayLoader(true);
     const response = await fetch('/api/register', {
         method: 'POST',
@@ -79,7 +58,7 @@ async function register(email, name, password) {
     await login(email, password);
 }
 
-async function verifyTfa(otp) {
+export async function verifyTfa(otp) {
     displayLoader(true);
     const response = await fetch('/api/verify-tfa', {
         method: 'POST',
@@ -98,12 +77,10 @@ async function verifyTfa(otp) {
         return;
     }
 
-    redirectToCallback();
-
-    window.location.hash = '#';
+    redirectToCallback(data.authorization_code);
 }
 
-async function resetPassword(email) {
+export async function resetPassword(email) {
     displayLoader(true);
     const response = await fetch('/api/reset-password', {
         method: 'POST',
@@ -126,10 +103,26 @@ async function resetPassword(email) {
     window.location.hash = '#login';
 }
 
-function redirectToCallback() {
+export async function getProfile() {
+    displayLoader(true);
+    const response = await fetch('/api/user', {
+        method: 'POST',
+    });
+    displayLoader(false);
+
+    if (!response.ok) {
+        window.location.hash = '#login';
+        return;
+    }
+    return await response.json().catch(() => ({}));
+}
+
+
+
+function redirectToCallback(code) {
     const callbackUrl = new URLSearchParams(window.location.search).get('callback');
     if (callbackUrl) {
-        window.location.href = `https://${callbackUrl}?auth_code=${encodeURIComponent(CACHE.authorization_code)}`;
+        window.location.href = `https://${callbackUrl}?auth_code=${code}`;
     } else {
         window.location.hash = '#profile';
     }

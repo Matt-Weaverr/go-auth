@@ -1,21 +1,12 @@
+import { login, register, verifyTfa, resetPassword, getProfile } from './api.js';
+
 const container = document.querySelector(".container");
-const noticationBox = document.querySelector(".notification-box");
-const loader = document.querySelector(".loader");
 
 window.addEventListener("hashchange", hashChange);
 window.addEventListener("load", hashChange);
 window.addEventListener("submit", submit);
 
 async function hashChange() {
-    const code = new URLSearchParams(window.location.search).get('code');
-    if (code) {
-        const accessToken = await exchangeAuthorizationCode(code);
-        if (accessToken) {
-            window.history.replaceState({}, '', window.location.pathname);
-            window.location.hash = '#profile';
-            return;
-        }
-    }
 
     if (location.hash == "#profile") {
         renderProfile();
@@ -106,75 +97,45 @@ async function hashChange() {
 }
 
 async function renderProfile() {
-    const { accessToken } = getStoredTokens();
-    if (!accessToken) {
-        location.hash = '#login';
-        return;
-    }
 
-    const profile = await getUser(accessToken);
-    if (!profile) {
-        clearStoredTokens();
-        location.hash = '#login';
-        return;
-    }
+    let profile = await getProfile();
 
-    body.innerHTML = `
-        <div class="container profile-container">
+    container.innerHTML = `
             <h1>Profile</h1>
-            <form id="profile-form">
-                <span>
-                    <label>Name</label>
-                    <input type="text" name="name" value="${profile.name || ''}" />
-                </span>
-                <span>
-                    <label>Email</label>
-                    <input type="email" name="email" value="${profile.email || ''}" />
-                </span>
-                <span>
-                    <label>New Password</label>
-                    <input type="password" name="password" placeholder="Leave blank to keep current password" />
-                </span>
-                <button type="submit">Save changes</button>
-            </form>
-            <button type="button" id="logout-button" class="secondary-button">Logout</button>
-        </div>
+                <div>
+                    <h2>Name</h2>
+                    <span><p>${profile.name || ''}</p><button>Edit</button></span>
+                </div>
+                <div>
+                    <h2>Email</h2>
+                    <span><p>${profile.email || ''}</p><button>Edit</button></span>
+                </div>
+                <div>
+                    <h2>Password</h2>
+                    <span><button>Edit</button></span>
+                </div>
+                <div>
+                    <h2>TFA</h2>
+                    <span>${profile.tfa_enabled ? '<button>Disable</button>' : '<button>Enable</button>'}</span>
+                </div>
+            <button class="logout-button">Logout</button>
     `;
-
-    document.querySelector('#profile-form').addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const name = document.querySelector('input[name="name"]').value.trim();
-        const email = document.querySelector('input[name="email"]').value.trim();
-        const password = document.querySelector('input[name="password"]').value.trim();
-
-        const updates = {};
-        if (name) updates.name = name;
-        if (email) updates.email = email;
-        if (password) updates.password = password;
-
-        const success = await updateUser(accessToken, updates);
-        if (success) {
-            renderProfile();
-        }
-    });
-
-    document.querySelector('#logout-button').addEventListener('click', () => {
-        clearStoredTokens();
-        location.hash = '#login';
-    });
-}
+};
 
 function submit(event) {
     event.preventDefault();
 
+
+    
     if (location.hash == "#profile") {
         return;
     }
 
-    const email = document.querySelector('input[name="email"]')?.value || '';
-    const password = document.querySelector('input[name="password"]')?.value || '';
-    const name = document.querySelector('input[name="name"]')?.value || '';
-    const otp = document.querySelector('input[name="otp"]')?.value || '';
+    const form = event.target;
+    const email =  form.querySelector('input[name="email"]')?.value || '';
+    const password = form.querySelector('input[name="password"]')?.value || '';
+    const name = form.querySelector('input[name="name"]')?.value || '';
+    const otp = form.querySelector('input[name="otp"]')?.value || '';
 
     switch (location.hash) {
         case "#register":
@@ -193,31 +154,4 @@ function submit(event) {
         default:
             login(email, password);
     }
-}
-
-function displayLoader(show) {
-    if (show) {
-        loader.style.display = 'flex';
-    } else {
-        loader.style.display = 'none';
-    }
-}
-
-let noficationcount = 0;
-function displayNotification(message, error = false) {
-    if (error) {
-        noticationBox.insertAdjacentHTML('afterbegin', `<div class="notification error" id="notification-${noficationcount}"><p>Error: ${message}</p></div>`);
-    } else {
-        noticationBox.insertAdjacentHTML('afterbegin', `<div class="notification success" id="notification-${noficationcount}"><p>Success: ${message}</p></div>`);
-    }
-
-    let notifid = noficationcount;
-
-    setTimeout(() => {
-        const notification = document.getElementById(`notification-${notifid}`);
-        if (notification) {
-            notification.remove();
-        }
-    }, 5000);
-    noficationcount++;
 }

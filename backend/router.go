@@ -266,7 +266,6 @@ func initRouter() {
 
 		setUserAuthCookie(w, strconv.Itoa(user.Id), refreshToken)
 
-
 		json.NewEncoder(w).Encode(map[string]any{
 			"error":              false,
 			"message":            "",
@@ -433,28 +432,13 @@ func initRouter() {
 
 	mux.Handle("/api/user", AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-
-		token := strings.TrimSpace(r.Header.Get("Authorization"))
-		token = strings.TrimPrefix(token, "Bearer ")
-		if token == "" {
-			http.Error(w, "Missing access token", http.StatusUnauthorized)
-			return
-		}
-
-		payload, ok := verifyAccessJWT(token)
+		profile, ok := r.Context().Value("profile").(Profile)
 		if !ok {
-			http.Error(w, "Invalid access token", http.StatusUnauthorized)
-			return
-		}
-
-		profile, err := readProfile("id", payload.Id)
-		if err != nil {
-			http.Error(w, "Could not find profile", http.StatusNotFound)
+			http.Error(w, "Could not retrieve profile", http.StatusInternalServerError)
 			return
 		}
 
 		json.NewEncoder(w).Encode(map[string]any{
-			"id":          profile.Id,
 			"name":        profile.Name,
 			"email":       profile.Email,
 			"tfa_enabled": profile.Tfa_Enabled,

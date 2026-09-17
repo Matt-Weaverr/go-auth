@@ -19,6 +19,9 @@ Login status codes
 4 = tfa auth required
 0 = successful login
 */
+
+const REFRESH_TOKEN_EXPIRATION = 10080
+
 func login(email string, password string, devicefingerprint string) (int, string, string, string, Profile) {
 	p, err := readProfile("email", email)
 	if err != nil {
@@ -62,7 +65,7 @@ func generateAuthTokens(id int, email string, name string) (bool, string, string
 		return  false, "", ""
 	}
 	err = updateProfile(id, "refresh_token", refreshtoken)
-	err = updateProfile(id, "refresh_token_expiration", time.Now().Add(168*time.Hour).Unix())
+	err = updateProfile(id, "refresh_token_expiration", time.Now().Add(REFRESH_TOKEN_EXPIRATION * time.Minute).Unix())
 
 	if err != nil {
 		return false, "", ""
@@ -179,7 +182,7 @@ func setUserAuthCookie(w http.ResponseWriter, user_id string, refresh_token stri
 	http.SetCookie(w, &http.Cookie{
 		Name:     "auth_token",
 		Value:    user_id + "." + refresh_token + "." + base64.RawURLEncoding.EncodeToString(sig),
-		Expires:  time.Now().Add(24 * time.Hour),
+		Expires:  time.Now().Add(REFRESH_TOKEN_EXPIRATION * time.Minute),
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   false,

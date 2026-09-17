@@ -9,14 +9,24 @@
     <link rel="stylesheet" href="css/main.css" />
 </head>
 <body>
-    <div class="notification-box">
-        <!-- <div class="notification error">
-            <p>Error: Failed to find user with email</p>
+    <div class="model-container">
+        <div class="model">
+            <div class="loader-model">
+                <div class="spinner-model"></div>
+            </div>
+            <div class="model-content">
+                <h1>Login</h1>
+                <form>
+                    <span>
+                        <label>Email</label>
+                        <input type="email" name="email" placeholder="Email" required />
+                    </span>
+                    <button type="submit">Login</button>
+                </form>
+            </div>
         </div>
-
-        <div class="notification success">
-            <p>Success: User found</p>
-        </div> -->
+    </div>
+    <div class="notification-box">
     </div>
     <div class="main-container">
         <div class="loader">
@@ -26,6 +36,5 @@
         </div>
     </div>
 </body>
-<script src="js/api.js" defer></script>
-<script src="js/main.js" defer></script>
+<script type="module" src="js/main.js"></script>
 </html>

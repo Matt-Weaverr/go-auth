@@ -10,33 +10,57 @@
 
 body {
     background-color: #0c0c0c;
-    height: 100vh;
     display: flex;
-    align-items: center;
     justify-content: center;
+    align-items: center;
+    height: 100vh;
 }
 
-.main-container {
+.main-container{
     height: fit-content;
     padding: 30px;
     margin-left: auto;
     margin-right: auto;
     border-radius: 10px;
-    z-index: 99;
+    z-index: 1;
     position: relative;
     background-color: #66666613;
     box-shadow: 0px 0px 10px 5px rgba(0, 0, 0, 0.089);
     width: 400px;
-
 }
 
-.container {
+.model {
+    width: 400px;
+    height: fit-content;
+    padding: 30px;
+    border-radius: 10px;
+    background-color: #202020;
+    box-shadow: 0px 0px 10px 5px rgba(0, 0, 0, 0.089);
+}
+
+.model-container {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.685);
+    backdrop-filter: blur(5px);
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+.container,
+.model-content {
     display: flex;
     gap: 20px;
     flex-direction: column;
 }
 
-.container form {
+.container form,
+.model-content form {
     display: flex;
     gap: 20px;
     justify-content: center;
@@ -44,11 +68,13 @@ body {
     align-items: center;
 }
 
-.container p {
+.container p,
+.model-content p {
     text-align: center;
 }
 
-.container span {
+.container span,
+.model-content span {
     display: flex;
     flex-direction: column;
     width: 100%;
@@ -60,12 +86,14 @@ body {
     text-align: right;
 } 
 
-.container h1 {
+.container h1,
+.model-content h1 {
     text-align: center;
     color: white;
 }
 
-.container form input {
+.container form input,
+.model-content form input {
     border: none;
     border-radius: 10px;
     padding: 10px;
@@ -74,12 +102,14 @@ body {
     height: 40px;
 }
 
-.container form input:focus {
+.container form input:focus,
+.model-content form input:focus {
     box-shadow: 0 0 0 1px inset #ffffff;
     outline: none;
 }
 
-.container button[type=submit] {
+.container button[type=submit],
+.model-content button[type=submit] {
     color: #000;
     width: 100%;
     height: 40px;
@@ -88,6 +118,58 @@ body {
     background-color: #ffffff;
     border: none;
     margin-bottom: 20px;
+}
+
+.container div,
+.model-content div {
+    display: flex;
+    justify-content: space-between;
+    flex-direction: row;
+    align-items: center;
+}
+
+.container h2,
+.model-content h2 {
+    font-size: 16px;
+}
+
+.container div span,
+.model-content div span {
+    display: flex;
+    gap: 10px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    width: fit-content;
+}
+
+.container div span p,
+.model-content div span p {
+    font-size: 16px;
+}
+
+.container div span button,
+.model-content div span button {
+    background-color: #ffffff;
+    color: #000;
+    border: none;
+    border-radius: 5px;
+    padding: 10px 20px;
+    cursor: pointer;
+}
+
+.container .logout-button {
+    background-color: #ffffff09;
+    color: #fa5e55;
+    border: none;
+    border-radius: 5px;
+    padding: 10px 20px;
+    cursor: pointer;
+}
+
+.container .logout-button:hover {
+    background-color: #aa2e27;
+    color: #ffffff;
 }
 
 .notification-box {
@@ -99,6 +181,7 @@ body {
     right: 10px;
     color: white;
     width: 400px;
+    z-index: 1002;
 }
 
 .notification {
@@ -110,7 +193,7 @@ body {
 }
 
 .notification.error {
-    background-color: #ff2b2b;
+    background-color: #fa5e55;
 }
 
 .notification.success {
@@ -121,7 +204,8 @@ body {
     margin: 0;
 }
 
-.main-container .loader {
+.main-container .loader,
+.model-container .loader-model {
     position: absolute;
     top: 0;
     left: 0;
@@ -132,10 +216,11 @@ body {
     display: none;
     justify-content: center;
     align-items: center;
-    z-index: 1000;
+    z-index: 1001;
 }
 
-.loader .spinner {
+.main-container .spinner,
+.model-container .spinner-model {
     border: 4px solid #f3f3f3;
     border-top: 4px solid #3498db00;
     border-radius: 50%;
