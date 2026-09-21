@@ -1,22 +1,26 @@
-import { login, register, verifyTfa, resetPassword, getProfile } from './api.js';
+import { login, register, verifyTfa, resetPassword, checkUserAuth, logout, updateEmail, updateName, updatePassword } from './api.js';
+import { displayModal, displayNotification } from './ui.js';
 
 const container = document.querySelector(".container");
 
 window.addEventListener("hashchange", hashChange);
 window.addEventListener("load", hashChange);
 window.addEventListener("submit", submit);
+window.addEventListener("click", buttonClick);
 
 async function hashChange() {
 
-    if (location.hash == "#profile") {
-        renderProfile();
+    let auth = await checkUserAuth();
+
+    if (auth.authenticated) {
+        renderProfile(auth.user_data);
         return;
     }
 
     if (location.hash == "#register") {
         container.innerHTML = `
             <h1>Register</h1>
-            <form>
+            <form name="register-form">
                 <span>
                     <label>Full Name</label>
                     <input type="text" name="name" placeholder="Name" required />
@@ -48,7 +52,7 @@ async function hashChange() {
                 <div class="spinner"></div>
             </div>
             <h1>Password reset</h1>
-            <form>
+            <form name="forgot-password-form">
                 <span>
                     <label>Email</label>
                     <input type="email" name="email" placeholder="Email" required />
@@ -66,7 +70,7 @@ async function hashChange() {
         container.innerHTML = `
             <h1>Verify login</h1>
             <p>Enter the code sent to your email</p>
-            <form>
+            <form name="tfa-form">
                 <span>
                     <label>Code</label>
                     <input type="text" name="otp" placeholder="Code" required />
@@ -78,7 +82,7 @@ async function hashChange() {
 
     container.innerHTML = `
         <h1>Login</h1>
-        <form>
+        <form name="login-form">
             <span>
                 <label>Email</label>
                 <input type="email" name="email" placeholder="Email" required />
@@ -96,62 +100,147 @@ async function hashChange() {
         </p>`;
 }
 
-async function renderProfile() {
-
-    let profile = await getProfile();
+async function renderProfile(profile) {
 
     container.innerHTML = `
             <h1>Profile</h1>
                 <div>
                     <h2>Name</h2>
-                    <span><p>${profile.name || ''}</p><button>Edit</button></span>
+                    <span><p id="profile_name">${profile.name || ''}</p><button name="edit_name">Edit</button></span>
                 </div>
                 <div>
                     <h2>Email</h2>
-                    <span><p>${profile.email || ''}</p><button>Edit</button></span>
+                    <span><p id="profile_email">${profile.email || ''}</p><button name="edit_email">Edit</button></span>
                 </div>
                 <div>
                     <h2>Password</h2>
-                    <span><button>Edit</button></span>
+                    <span><button name="edit_password">Edit</button></span>
                 </div>
                 <div>
                     <h2>TFA</h2>
-                    <span>${profile.tfa_enabled ? '<button>Disable</button>' : '<button>Enable</button>'}</span>
+                    <span>${profile.tfa_enabled ? '<button name="disable_tfa">Disable</button>' : '<button name="enable_tfa">Enable</button>'}</span>
                 </div>
-            <button class="logout-button">Logout</button>
+            <button class="logout-button" name="logout">Logout</button>
     `;
 };
 
 function submit(event) {
     event.preventDefault();
 
-
-    
-    if (location.hash == "#profile") {
-        return;
-    }
-
     const form = event.target;
     const email =  form.querySelector('input[name="email"]')?.value || '';
     const password = form.querySelector('input[name="password"]')?.value || '';
+    const current_password = form.querySelector('input[name="current_password"]')?.value || '';    
     const name = form.querySelector('input[name="name"]')?.value || '';
     const otp = form.querySelector('input[name="otp"]')?.value || '';
 
-    switch (location.hash) {
-        case "#register":
+    switch (form.getAttribute('name')) {
+        case "register-form":
             if (password !== document.querySelector('input[name="confirm-password"]')?.value) {
-                console.log('Passwords do not match');
-                return;
+                displayNotification('Passwords do not match', true);
+                break;
             }
             register(email, name, password);
             break;
-        case "#forgot-password":
+        case "login-form":
+            login(email, password);
+            break;
+        case "reset-password-form":
             resetPassword(email);
             break;
-        case "#tfa-verification":
+        case "tfa-form":
             verifyTfa(otp);
             break;
+        case "change-email-form":
+            console.log("emial form trigggered");
+            updateEmail(email);
+            break;
+        case "change-name-form":
+            updateName(name);
+            break;
+        case "change-password-form":
+            if (password !== document.querySelector('input[name="confirm-password"]')?.value) {
+                displayNotification('Passwords do not match', true);
+                break;
+            }
+            updatePassword(current_password, password);
+            break;
         default:
-            login(email, password);
+            return;
+    }
+}
+
+function buttonClick(event) {
+    let button = event.target;
+
+    if (button.tagName.toLowerCase() !== 'button') {
+        return;
+    }
+
+    switch (button.name) {
+    case "edit_name":
+        let currentname = document.getElementById("profile_name").textContent;
+        displayModal(true, `
+            <h1>Change name</h1>
+            <form name="change-name-form">
+                <span>
+                    <input type="text" name="name" value="${currentname}" placeholder="New name" required />
+                </span>
+                <span class="action-buttons">
+                    <button type="button" name="close_modal">Cancel</button>
+                    <button type="submit" name="change_name">Submit</button>
+                </span>
+            </form>
+            `)
+        break;
+    case "edit_email":
+        let currentemail = document.getElementById("profile_email").textContent;
+        displayModal(true, `
+            <h1>Change email</h1>
+            <form name="change-email-form">
+                <span>
+                    <input type="email" name="email" value="${currentemail}" placeholder="New email" required />
+                </span>
+                <span class="action-buttons">
+                    <button type="button" name="close_modal">Cancel</button>
+                    <button type="submit" name="change_email">Submit</button>
+                </span>
+            </form>
+            `)
+        break;
+    case "edit_password":
+        displayModal(true, `
+            <h1>Change password</h1>
+            <form name="change-password-form">
+                <span>
+                    <input type="password" name="current_password" placeholder="Current password" required />
+                </span>
+                <span>
+                    <input type="password" name="password" placeholder="New password" required />
+                </span>
+                <span>
+                    <input type="password" name="confirm-password" placeholder="Repeat new password" required />
+                </span>
+                <span class="action-buttons">
+                    <button type="button" name="close_modal">Cancel</button>
+                    <button type="submit" name="change_password">Submit</button>
+                </span>
+            </form>
+            `)
+        break;
+    case "enable_tfa":
+
+        break;
+    case "disable_tfa":
+
+        break;
+    case "close_modal":
+        displayModal(false, '');
+        break;
+    case "logout":
+        logout()
+        break;
+    default:
+        
     }
 }

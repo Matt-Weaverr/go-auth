@@ -1,16 +1,17 @@
 package main
 
 import (
-	"log"
-	"time"
-	"strings"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
-	"os"
+	"log"
 	"net/http"
+	"os"
+	"strings"
+	"time"
 )
+
 /*
 Login status codes
 -1 = could not find user
@@ -172,6 +173,10 @@ func verifyPreAuthToken(token string) (bool, int) {
 }
 
 func setUserAuthCookie(w http.ResponseWriter, user_id string, refresh_token string) {
+	securemode := true
+	if os.Getenv("DEV_MODE") == "true" {
+		securemode = false
+	}
 
 	sig, err := generateSignature([]byte(user_id+"."+refresh_token), []byte(os.Getenv("SECRET_KEY")))
 	if err != nil {
@@ -185,8 +190,30 @@ func setUserAuthCookie(w http.ResponseWriter, user_id string, refresh_token stri
 		Expires:  time.Now().Add(REFRESH_TOKEN_EXPIRATION * time.Minute),
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   false,
+		Secure:   securemode,
 		SameSite: http.SameSiteLaxMode,
 	})
+}
+
+func logout(w http.ResponseWriter, user_id int) bool {
+	securemode := true
+	if os.Getenv("DEV_MODE") == "true" {
+		securemode = false
+	}
+	err := updateProfile(user_id , "refresh_token_expiration", 0)
+	if err != nil {
+		return false
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     "auth_token",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		Expires:  time.Unix(0, 0),
+		HttpOnly: true,                         
+		Secure:   securemode,                         
+		SameSite: http.SameSiteLaxMode,      
+	})
+	return true
 }
 

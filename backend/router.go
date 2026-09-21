@@ -445,74 +445,75 @@ func initRouter() {
 		})
 	})))
 
-	mux.Handle("/api/update", AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		token := strings.TrimSpace(r.Header.Get("Authorization"))
-		token = strings.TrimPrefix(token, "Bearer ")
-		if token == "" {
-			http.Error(w, "Missing access token", http.StatusUnauthorized)
-			return
-		}
-
-		payload, ok := verifyAccessJWT(token)
+	mux.Handle("/api/logout", AuthMiddleware(http.HandlerFunc(func (w http.ResponseWriter, r *http.Request) {
+		profile, ok := r.Context().Value("profile").(Profile)
 		if !ok {
-			http.Error(w, "Invalid access token", http.StatusUnauthorized)
+			http.Error(w, "Could not retrieve profile", http.StatusInternalServerError)
 			return
 		}
 
-		profile, err := readProfile("id", payload.Id)
+		if !logout(w, profile.Id) {
+			http.Error(w, "Failed to logout user", http.StatusInternalServerError)
+			return
+		}
+	})))
+
+	mux.Handle("/api/update/{field}", AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		field := r.PathValue("field")
+
+		var payload map[string]string
+		err := json.NewDecoder(r.Body).Decode(&payload);
+		defer r.Body.Close();
+
 		if err != nil {
-			http.Error(w, "Could not find profile", http.StatusNotFound)
+			http.Error(w, "Failed to retreive payload", http.StatusInternalServerError)
 			return
 		}
 
-		var updates map[string]string
-		if err := json.NewDecoder(r.Body).Decode(&updates); err != nil {
-			http.Error(w, "Invalid request body", http.StatusBadRequest)
+		profile, ok := r.Context().Value("profile").(Profile)
+		if !ok {
+			http.Error(w, "Could not retrieve profile", http.StatusInternalServerError)
 			return
 		}
-		defer r.Body.Close()
 
-		if name := strings.TrimSpace(updates["name"]); name != "" {
-			if err := updateProfile(profile.Id, "name", name); err != nil {
-				http.Error(w, "Could not update name", http.StatusInternalServerError)
+		switch field {
+			case "email":
+				new_email := strings.TrimSpace(payload["email"])
+
+				err = updateProfile(profile.Id, "email", new_email)
+				if err != nil {
+					http.Error(w, "Failed to update profile", http.StatusInternalServerError)
+					return
+				}
 				return
-			}
+			case "name":
+				new_name := strings.TrimSpace(payload["name"])
+
+				err = updateProfile(profile.Id, "name", new_name)
+				if err != nil {
+					http.Error(w, "Failed to update profile", http.StatusInternalServerError)
+					return
+				}
+				return
+			case "password":
+				if !checkPassword(payload["current_password"], profile.Password_Hash) {
+					http.Error(w, "Password incorrect", http.StatusUnauthorized)
+					return
+				}
+				password_hash, err := generatePasswordHash(payload["new_password"])
+				if err != nil {
+					http.Error(w, "Failed to generate password hash", http.StatusInternalServerError)
+					return
+				}
+				err = updateProfile(profile.Id, "password_hash", password_hash)
+				if err != nil {
+					http.Error(w,"Failed to update profile", http.StatusInternalServerError)
+					return
+				}
 		}
 
-		if email := strings.TrimSpace(updates["email"]); email != "" {
-			if email != profile.Email && emailExists(email) {
-				http.Error(w, "Email already exists", http.StatusConflict)
-				return
-			}
-			if err := updateProfile(profile.Id, "email", email); err != nil {
-				http.Error(w, "Could not update email", http.StatusInternalServerError)
-				return
-			}
-		}
 
-		if password := strings.TrimSpace(updates["password"]); password != "" {
-			hash, err := generatePasswordHash(password)
-			if err != nil {
-				http.Error(w, "Could not hash password", http.StatusInternalServerError)
-				return
-			}
-			if err := updateProfile(profile.Id, "password_hash", hash); err != nil {
-				http.Error(w, "Could not update password", http.StatusInternalServerError)
-				return
-			}
-		}
-
-		json.NewEncoder(w).Encode(map[string]any{
-			"error":   false,
-			"message": "Profile updated",
-		})
 	})))
 
 	http.ListenAndServe(":8000", mux)

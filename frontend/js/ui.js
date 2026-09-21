@@ -1,8 +1,8 @@
 const loader = document.querySelector('.loader');
 const noticationBox = document.querySelector('.notification-box');
-const modelContainer = document.querySelector('.model-container');
-const modelcontent = document.querySelector('.model-content');
-const modelloader = document.querySelector('.loader-model');
+const modalContainer = document.querySelector('.modal-container');
+const modalcontent = document.querySelector('.modal-content');
+const modalloader = document.querySelector('.loader-modal');
 
 export function displayLoader(show) {
     if (show) {
@@ -31,15 +31,15 @@ export function displayNotification(message, error = false) {
     noficationcount++;
 }
 
-export function displayModel(show, content) {
-    modelContainer.style.display = show ? 'flex' : 'none';
-    modelcontent.innerHTML = content;
+export function displayModal(show, content) {
+    modalContainer.style.display = show ? 'flex' : 'none';
+    modalcontent.innerHTML = content;
 }
 
-export function displayModelLoader(show) {
+export function displayModalLoader(show) {
     if (show) {
-        modelloader.style.display = 'flex';
+        modalloader.style.display = 'flex';
     } else {
-        modelloader.style.display = 'none';
+        modalloader.style.display = 'none';
     }
 }

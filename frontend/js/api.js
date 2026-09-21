@@ -1,4 +1,4 @@
-import { displayLoader, displayNotification, displayModel, displayModelLoader } from './ui.js';
+import { displayLoader, displayNotification, displayModal, displayModalLoader } from './ui.js';
 
 const CACHE = {
     pre_auth_token: '',
@@ -117,6 +117,90 @@ export async function getProfile() {
     return await response.json().catch(() => ({}));
 }
 
+export async function checkUserAuth() {
+    displayLoader(true);
+    const response = await fetch('/api/user', {
+        method: 'POST',
+    });
+    if (response.ok) {
+        let data = await response.json().catch(() => ({}))
+        displayLoader(false);
+        if (JSON.stringify(data) === '{}') {
+            displayNotification('Failed to fetch user data', true);
+        }
+        return { authenticated: true, user_data: data };
+    }
+    displayLoader(false);
+    return { authenticated: false, user_data: {} };
+}
+
+export async function logout() {
+    displayLoader(true);
+    const response = await fetch('/api/logout', {
+        method: 'POST',
+    });
+    displayLoader(false);
+    if (!response.ok) {
+        displayNotification("Failed to logout user", true);
+        return
+    }
+    window.location.hash = "#login";
+}
+
+export async function updateEmail(email_param) {
+    displayLoader(true);
+    const response = await fetch('/api/update/email', {
+        method: 'POST',
+        body: JSON.stringify({ email: email_param})
+    });
+    displayLoader(false);
+    if (!response.ok) {
+        displayNotification("Failed to update user email", true);
+        return
+    }
+    displayNotification("Updated user email", false);
+    displayModal(false, '');
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+}
+
+export async function updateName(name_param) {
+    displayLoader(true);
+    const response = await fetch('/api/update/name', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name: name_param})
+    });
+    displayLoader(false);
+    if (!response.ok) {
+        displayNotification("Failed to update user name", true);
+        return
+    }
+    displayNotification("Updated user name", false);
+    displayModal(false, '');
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+}
+
+export async function updatePassword(current_password_param, new_password_param) {
+    displayLoader(true);
+    const response = await fetch('/api/update/password', {
+        method: 'POST',
+        body: JSON.stringify({ current_password: current_password_param, new_password: new_password_param})
+    });
+    displayLoader(false);
+    if (response.status === 401) {
+        displayNotification("Incorrect password", true);
+        return
+    }
+    if (!response.ok) {
+        displayNotification("Failed to update user password", true);
+        return
+    }
+    displayNotification("Updated user password", false);
+    displayModal(false, '');
+}
+
 
 
 function redirectToCallback(code) {
@@ -124,7 +208,11 @@ function redirectToCallback(code) {
     if (callbackUrl) {
         window.location.href = `https://${callbackUrl}?auth_code=${code}`;
     } else {
-        window.location.hash = '#profile';
+        if (location.hash !== '') {
+            window.location.hash = '';
+        } else {
+            window.dispatchEvent(new HashChangeEvent('hashchange'));
+        }
     }
 }
 
