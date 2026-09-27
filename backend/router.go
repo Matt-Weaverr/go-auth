@@ -9,43 +9,44 @@ import (
 )
 
 type Auth_Response struct {
-	Tfa_Required       bool   `json:"tfa_required"`
-	Pre_Auth_Token     string `json:"pre-auth_token"`
+	Tfa_Required bool `json:"tfa_required"`
+	Pre_Auth_Token string `json:"pre_auth_token"`
 	Authorization_Code string `json:"authorization_code"`
-	Error              bool   `json:"error"`
-	Message            string `json:"message"`
+	Error bool `json:"error"`
+	Message string `json:"message"`
 }
 
 type New_User struct {
-	Email    string `json:"email"`
-	Name     string `json:"name"`
+	Email string `json:"email"`
+	Name string `json:"name"`
 	Password string `json:"password"`
 }
 
 type User struct {
-	Email           string `json:"email"`
-	Password        string `json:"password"`
-	Remember_Device bool   `json:"remember_device"`
-	Dfp             string `json:"dfp"`
+	Email string `json:"email"`
+	Password string `json:"password"`
+	Dfp string `json:"dfp"`
 }
 
 type Tfa struct {
-	Otp   int    `json:"otp"`
+	Otp int `json:"otp"`
 	Token string `json:"token"`
+	Remember_Device bool   `json:"remember_device"`
+	Dfp string `json:"dfp"`
 }
 
 type Tfa_Response struct {
-	Error   bool   `json:"error"`
+	Error bool   `json:"error"`
 	Message string `json:"message"`
 }
 
 type Refresh_Request struct {
-	User_Id       int    `json:"user-id"`
+	User_Id int `json:"user-id"`
 	Refresh_Token string `json:"refresh_token"`
 }
 
 type Refresh_Response struct {
-	Valid        bool   `json:"valid"`
+	Valid bool `json:"valid"`
 	Access_Token string `json:"access_token"`
 }
 
@@ -112,9 +113,6 @@ func initRouter() {
 			}
 
 		case 0:
-			if u.Remember_Device {
-				//update db
-			}
 			//this is used to authenticate on the edit user page
 			setUserAuthCookie(w, strconv.Itoa(profile.Id), refreshtoken)
 
@@ -262,6 +260,14 @@ func initRouter() {
 		if authorizationCode == "" {
 			http.Error(w, "Could not create authorization code", http.StatusInternalServerError)
 			return
+		}
+
+		if tfa.Remember_Device {
+			
+
+
+
+
 		}
 
 		setUserAuthCookie(w, strconv.Itoa(user.Id), refreshToken)
@@ -423,11 +429,9 @@ func initRouter() {
 		}
 
 		sendEmail(
-			"no-reply@conquerearthmc.com",
 			[]string{email},
 			"Reset Password\n",
-			"Hello! You requested a password reset. Please use the following link to reset your password: https://conquerearthmc.com/#reset-password?token=" + token,
-		)
+			"Hello! You requested a password reset. Please use the following link to reset your password: https://conquerearthmc.com/#reset-password?token=" + token)
 	})
 
 	mux.Handle("/api/user", AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -443,6 +447,61 @@ func initRouter() {
 			"email":       profile.Email,
 			"tfa_enabled": profile.Tfa_Enabled,
 		})
+	})))
+
+	mux.Handle("/api/send-tfa", AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		profile, ok := r.Context().Value("profile").(Profile)
+		if !ok {
+			http.Error(w, "Could not retrieve profile", http.StatusInternalServerError)
+			return
+		}
+
+		ok = sendTfa(profile.Id)
+		if !ok {
+			http.Error(w, "Failed to send otp", http.StatusInternalServerError)
+			return
+		}
+	})))
+
+	mux.Handle("/api/enable-tfa", AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload map[string]string
+		err := json.NewDecoder(r.Body).Decode(&payload);
+		if err != nil {
+			http.Error(w, "Could not retreive request payload", http.StatusInternalServerError)
+			return
+		}
+		defer r.Body.Close();
+		profile, ok := r.Context().Value("profile").(Profile)
+		if !ok {
+			http.Error(w, "Could not retrieve profile", http.StatusInternalServerError)
+			return
+		}
+
+		otp, err := strconv.Atoi(payload["otp"])
+
+		if err != nil {
+			http.Error(w, "Could not retreive request payload", http.StatusInternalServerError)
+			return
+		}
+		
+		status := verifyTfa(profile.Id, otp)
+		if status == -1 {
+			http.Error(w, "Could not verify tfa", http.StatusInternalServerError)
+			return
+		}
+		if status == 2 {
+			json.NewEncoder(w).Encode(map[string]any{
+				"error":        true,
+				"message":       "Incorrect TFA code",
+			})
+			return
+		}
+
+		json.NewEncoder(w).Encode(map[string]any{
+			"error":        false,
+			"message":       "",
+			})
+
 	})))
 
 

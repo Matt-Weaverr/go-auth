@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"strconv"
 )
 
 /*
@@ -102,8 +103,24 @@ func register(name string, email string, password string) int {
 }
 
 func sendTfa(id int) bool {
-	err := updateProfile(id, "tfa_code", generateRandomInt(100000, 999999))
+	otp := generateRandomInt(100000, 999999)
+
+	p, err := readProfile("id", id)
+
+	if err != nil {
+		log.Printf("Could not fetch user data when sending tfa")
+		return false
+	}
+
+	err = updateProfile(id, "tfa_code", otp)
 	err = updateProfile(id, "tfa_code_expiration", time.Now().Add(5*time.Minute).Unix())
+
+	otp_string := strconv.Itoa(otp)
+
+	sendEmail(
+		[]string{p.Email},
+		"TFA Otp \n",
+		"Here is your one time pin for tfa: " + otp_string)
 
 	if err != nil {
 		log.Printf("Could not update user tfa code in db for id %d", id)
@@ -117,13 +134,16 @@ func verifyTfa(id int, code int) int {
 	if err != nil {
 		return -1
 	}
-	
-	if !p.Tfa_Enabled {
-		return 0
-	}
 
 	if *p.Tfa_Code != code || *p.Tfa_Code_Expiration <= time.Now().Unix() {
 		return 2
+	}
+
+	if !p.Tfa_Enabled {
+		err = updateProfile(p.Id, "tfa_enabled", 1)
+		if err != nil {
+			return -1
+		}
 	}
 	return 0
 }

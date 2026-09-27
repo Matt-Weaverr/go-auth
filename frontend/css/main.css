@@ -82,6 +82,18 @@ body {
     gap: 5px;
 }
 
+#remember-device-box {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: left;
+}
+
+input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+}
+
 #forgot-password {
     text-align: right;
 } 
@@ -92,8 +104,8 @@ body {
     color: white;
 }
 
-.container form input,
-.modal-content form input {
+.container form input:not([type="checkbox"]),
+.modal-content form input:not([type="checkbox"]) {
     border: none;
     border-radius: 10px;
     padding: 10px;
@@ -102,8 +114,8 @@ body {
     height: 40px;
 }
 
-.container form input:focus,
-.modal-content form input:focus {
+.container form input:not([type="checkbox"]):focus,
+.modal-content form input:not([type="checkbox"]):focus {
     box-shadow: 0 0 0 1px inset #ffffff;
     outline: none;
 }

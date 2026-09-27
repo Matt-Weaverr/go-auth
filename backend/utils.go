@@ -47,21 +47,29 @@ func generateRandomInt(min int, max int) int {
 	return randomint
 }
 
-func sendEmail(from string, to []string, subject string, body string) {
+func sendEmail(to []string, subject string, body string) {
 	smtpHost := os.Getenv("SMTP_HOST")
 	smtpPort := os.Getenv("SMTP_PORT")
-	password := os.Getenv("SMTP_PASSWORD")
+	smtpUser := os.Getenv("SMTP_USER")
+	smtpPassword := os.Getenv("SMTP_PASSWORD")
 
-	message := []byte(subject + "\n" + body)
+	auth := smtp.PlainAuth("", smtpUser, smtpPassword, smtpHost)
 
-	auth := smtp.PlainAuth("", from, password, smtpHost)
+	message := []byte(
+		"From: no-reply@conquerearthmc.com\r\n" +
+		"To: recipient@example.com\r\n" +
+		"Subject: " + subject + "\r\n" +
+		"\r\n" +
+		body,
+	)
+	err := smtp.SendMail(smtpHost+":"+smtpPort, auth, smtpUser, to, message)
 
-	err := smtp.SendMail(smtpHost+":"+smtpPort, auth, from, to, message)
 	if err != nil {
-		log.Printf("Failed to send password reset email: %v", err)
+		log.Printf("Failed to send email: %v", err)
+		return
 	}
 
-	log.Printf("Password reset email sent to: %v", to)
+	log.Printf("Email sent to: %v", to)
 }
 
 func generateSignature(data []byte, key any) ([]byte, error) {

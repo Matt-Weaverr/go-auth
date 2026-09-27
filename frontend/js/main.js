@@ -1,5 +1,7 @@
-import { login, register, verifyTfa, resetPassword, checkUserAuth, logout, updateEmail, updateName, updatePassword } from './api.js';
+import { login, register, verifyTfa, resetPassword, checkUserAuth, logout, updateEmail, updateName, updatePassword, enableTfa, sendTfa } from './api.js';
 import { displayModal, displayNotification } from './ui.js';
+import FingerprintJS from '@fingerprintjs/fingerprintjs'
+
 
 const container = document.querySelector(".container");
 
@@ -8,10 +10,43 @@ window.addEventListener("load", hashChange);
 window.addEventListener("submit", submit);
 window.addEventListener("click", buttonClick);
 
+const fpPromise = FingerprintJS.load();
+
 async function hashChange() {
 
-    let auth = await checkUserAuth();
+    if (location.hash == "#tfa-enable") {
+        container.innerHTML = `
+            <h1>Enable TFA</h1>
+            <p>Enter the code sent to your email</p>
+            <form name="tfa-enable-form">
+                <span>
+                    <label>Code</label>
+                    <input type="text" name="otp" placeholder="Code" required />
+                </span>
+                <button type="submit">Submit</button>
+            </form>`;
+        return;
+    }
 
+        if (location.hash == "#tfa-verify") {
+        container.innerHTML = `
+            <h1>Verify TFA</h1>
+            <p>Enter the code sent to your email</p>
+            <form name="tfa-verify-form">
+                <span>
+                    <label>Code</label>
+                    <input type="text" name="otp" placeholder="Code" required />
+                </span>
+                <button type="submit">Submit</button>
+                <span id="remember-device-box">
+                    <input type="checkbox" name="remember-device" value="Remember device for 30 days">
+                    <label>Remember device for 30 days</label>
+                </span>
+            </form>`;
+        return;
+    }
+
+    let auth = await checkUserAuth();
     if (auth.authenticated) {
         renderProfile(auth.user_data);
         return;
@@ -66,20 +101,6 @@ async function hashChange() {
         return;
     }
 
-    if (location.hash == "#tfa-verification") {
-        container.innerHTML = `
-            <h1>Verify login</h1>
-            <p>Enter the code sent to your email</p>
-            <form name="tfa-form">
-                <span>
-                    <label>Code</label>
-                    <input type="text" name="otp" placeholder="Code" required />
-                </span>
-                <button type="submit">Submit</button>
-            </form>`;
-        return;
-    }
-
     container.innerHTML = `
         <h1>Login</h1>
         <form name="login-form">
@@ -124,7 +145,7 @@ async function renderProfile(profile) {
     `;
 };
 
-function submit(event) {
+async function submit(event) {
     event.preventDefault();
 
     const form = event.target;
@@ -143,7 +164,8 @@ function submit(event) {
             register(email, name, password);
             break;
         case "login-form":
-            login(email, password);
+            const dfp = await getFingerPrint();
+            login(email, password, dfp);
             break;
         case "reset-password-form":
             resetPassword(email);
@@ -152,7 +174,6 @@ function submit(event) {
             verifyTfa(otp);
             break;
         case "change-email-form":
-            console.log("emial form trigggered");
             updateEmail(email);
             break;
         case "change-name-form":
@@ -164,6 +185,17 @@ function submit(event) {
                 break;
             }
             updatePassword(current_password, password);
+            break;
+        case "tfa-enable-form":
+            enableTfa(otp);
+            break;
+        case "tfa-verify-form":
+            const remember_device = document.querySelector('input[name="remember-device"]').checked
+            let dfp2 = ''
+            if (remember_device) {
+                dfp2 =  await getFingerPrint();
+            }
+            verifyTfa(otp, remember_device, dfp2);
             break;
         default:
             return;
@@ -229,7 +261,7 @@ function buttonClick(event) {
             `)
         break;
     case "enable_tfa":
-
+        sendTfa();
         break;
     case "disable_tfa":
 
@@ -243,4 +275,10 @@ function buttonClick(event) {
     default:
         
     }
+}
+
+async function getFingerPrint() {
+  const fp = await fpPromise
+  const result = await fp.get()
+  return result.visitorId
 }

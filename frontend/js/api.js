@@ -4,7 +4,7 @@ const CACHE = {
     pre_auth_token: '',
 };
 
-export async function login(email, password) {
+export async function login(email_param, password_param, dfp_param) {
     displayLoader(true);
     const response = await fetch('/api/login', {
         method: 'POST',
@@ -12,7 +12,7 @@ export async function login(email, password) {
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ email, password, remember_device: false, dfp: '' })
+        body: JSON.stringify({ email: email_param, password: password_param, dfp: dfp_param })
     });
 
     const data = await response.json().catch(() => ({ error: true, message: 'Login failed' }));
@@ -25,12 +25,12 @@ export async function login(email, password) {
     }
 
     if (data.tfa_required) {
-        CACHE.pre_auth_token = data['pre-auth_token'] || '';
+        CACHE.pre_auth_token = data['pre_auth_token'] || '';
         if (!CACHE.pre_auth_token) {
-            displayNotification('Missing pre-auth token', true);
+            displayNotification('Missing pre auth token', true);
             return;
         }
-        window.location.hash = '#tfa-verification';
+        window.location.hash = '#tfa-verify';
         return;
     }
     redirectToCallback(data.authorization_code);
@@ -58,14 +58,14 @@ export async function register(email, name, password) {
     await login(email, password);
 }
 
-export async function verifyTfa(otp) {
+export async function verifyTfa(otp, remember_device_param, dfp_param) {
     displayLoader(true);
     const response = await fetch('/api/verify-tfa', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ otp: Number(otp), token: CACHE.pre_auth_token })
+        body: JSON.stringify({ otp: Number(otp), token: CACHE.pre_auth_token, remember_device: remember_device_param ? true : false, dfp: dfp_param})
     });
 
     const data = await response.json().catch(() => ({ error: true, message: 'Verification failed' }));
@@ -199,6 +199,43 @@ export async function updatePassword(current_password_param, new_password_param)
     }
     displayNotification("Updated user password", false);
     displayModal(false, '');
+}
+
+export async function sendTfa() {
+    displayLoader(true);
+    const response = await fetch('/api/send-tfa', {
+        method: 'POST'
+    });
+    displayLoader(false);
+    if (!response.ok) {
+        displayNotification("Failed to send tfa code", true);
+        return
+    }
+    window.location.hash = "#tfa-enable"
+}
+
+export async function enableTfa(otp_param) {
+    displayLoader(true);
+    const response = await fetch('/api/enable-tfa', {
+        method: 'POST',
+        body: JSON.stringify({ otp: otp_param})
+    });
+    
+    const data = await response.json().catch(() => ({ error: true, message: 'Failed to verify tfa' }));
+
+    displayLoader(false);
+    if (!response.ok) {
+        displayNotification("Failed to verify tfa", true);
+        return
+    }
+    
+    if (data.error) {
+        displayNotification(data.message, true);
+        return
+    }
+    console.log("trigger");
+    displayNotification("TFA Enabled", false);
+    window.location.hash = ''
 }
 
 
