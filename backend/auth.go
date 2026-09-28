@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 	"strconv"
@@ -21,8 +20,6 @@ Login status codes
 4 = tfa auth required
 0 = successful login
 */
-
-const REFRESH_TOKEN_EXPIRATION = 10080
 
 func login(email string, password string, devicefingerprint string) (int, string, string, string, Profile) {
 	p, err := readProfile("email", email)
@@ -60,14 +57,14 @@ func login(email string, password string, devicefingerprint string) (int, string
 }
 
 func generateAuthTokens(id int, email string, name string) (bool, string, string) {
-	refreshtoken, err := generateRandomToken(16)
+	refreshtoken, err := generateRandomToken()
 	if err != nil {
 		log.Printf("Failed to generate refresh token for user (%s)", email)
 		log.Print(err)
 		return  false, "", ""
 	}
 	err = updateProfile(id, "refresh_token", refreshtoken)
-	err = updateProfile(id, "refresh_token_expiration", time.Now().Add(REFRESH_TOKEN_EXPIRATION * time.Minute).Unix())
+	err = updateProfile(id, "refresh_token_expiration", time.Now().Add(time.Duration(CONFIG.Refresh_Token_Expiration) * time.Minute).Unix())
 
 	if err != nil {
 		return false, "", ""
@@ -157,7 +154,7 @@ func generatePreAuthToken(id int) string {
 	datajson, _ := json.Marshal(data)
 	datastring := base64.RawURLEncoding.EncodeToString(datajson)
 
-	h := hmac.New(sha256.New, []byte(os.Getenv("SECRET_KEY")))
+	h := hmac.New(sha256.New, []byte(CONFIG.Secret_Key))
 	h.Write([]byte(datastring))
 	sig := base64.RawURLEncoding.EncodeToString(h.Sum(nil))
 
@@ -173,7 +170,7 @@ func verifyPreAuthToken(token string) (bool, int) {
 	sig := parts[1]
 	data := parts[0]
 
-	h := hmac.New(sha256.New, []byte(os.Getenv("SECRET_KEY")))
+	h := hmac.New(sha256.New, []byte(CONFIG.Secret_Key))
 	h.Write([]byte(data))
 	expectedsig := base64.RawURLEncoding.EncodeToString(h.Sum(nil))
 
@@ -194,11 +191,11 @@ func verifyPreAuthToken(token string) (bool, int) {
 
 func setUserAuthCookie(w http.ResponseWriter, user_id string, refresh_token string) {
 	securemode := true
-	if os.Getenv("DEV_MODE") == "true" {
+	if CONFIG.Dev_Mode {
 		securemode = false
 	}
 
-	sig, err := generateSignature([]byte(user_id+"."+refresh_token), []byte(os.Getenv("SECRET_KEY")))
+	sig, err := generateSignature([]byte(user_id+"."+refresh_token), []byte(CONFIG.Secret_Key))
 	if err != nil {
 		log.Printf("Failed to generate signature for user auth cookie: %v", err)
 		return
@@ -207,7 +204,7 @@ func setUserAuthCookie(w http.ResponseWriter, user_id string, refresh_token stri
 	http.SetCookie(w, &http.Cookie{
 		Name:     "auth_token",
 		Value:    user_id + "." + refresh_token + "." + base64.RawURLEncoding.EncodeToString(sig),
-		Expires:  time.Now().Add(REFRESH_TOKEN_EXPIRATION * time.Minute),
+		Expires:  time.Now().Add(time.Duration(CONFIG.Refresh_Token_Expiration) * time.Minute),
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   securemode,
@@ -217,7 +214,7 @@ func setUserAuthCookie(w http.ResponseWriter, user_id string, refresh_token stri
 
 func logout(w http.ResponseWriter, user_id int) bool {
 	securemode := true
-	if os.Getenv("DEV_MODE") == "true" {
+	if CONFIG.Dev_Mode {
 		securemode = false
 	}
 	err := updateProfile(user_id , "refresh_token_expiration", 0)

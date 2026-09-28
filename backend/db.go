@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"log"
-	"os"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -23,10 +23,16 @@ type Profile struct {
 	Refresh_Token_Expiration  *int64
 }
 
+type Trusted_Device struct {
+	UserId int
+	DeviceFingerprint string
+	Expiration int64
+}
+
 var db *sql.DB
 
 func initDB() {
-	dsn := os.Getenv("DB_USER") + ":" + os.Getenv("DB_PASSWORD") + "@tcp(" + os.Getenv("DB_HOST") + ":" + os.Getenv("DB_PORT") + ")" + "/" + os.Getenv("DB_NAME")
+	dsn := CONFIG.Db_User + ":" + CONFIG.Db_Password + "@tcp(" + CONFIG.Db_Host + ":" + CONFIG.Db_Port + ")" + "/" + CONFIG.Db_Name
 	d, err := sql.Open("mysql", dsn)
 	if err != nil {
 		log.Fatal("Could not open database: ", err)
@@ -56,20 +62,23 @@ func initDB() {
 	trusted_devices_table := `
 	CREATE TABLE IF NOT EXISTS trusted_devices
 		(user_id int NOT NULL,
-		device_fingerprint VARCHAR(100) NOT NULL)`
+		device_fingerprint VARCHAR(100) NOT NULL,
+		expiration BIGINT NOT NULL,
+		FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE)`
 
 	authorization_codes_table := `
-	CREATE TABLE IF NOT EXISTS authorization_codes_table
+	CREATE TABLE IF NOT EXISTS authorization_codes
 		(code VARCHAR(100) NOT NULL,
 		access_token VARCHAR(1000) NOT NULL,
-		refresh_token VARCHAR(1000) NOT NULL)`
+		refresh_token VARCHAR(1000) NOT NULL,
+		expiration BIGINT NOT NULL)`
 
 	if _, err = d.Exec(profiles_table); err != nil {
 		log.Fatal("Unable to create profiles_table")
 	}
 
 	if _, err = d.Exec(authorization_codes_table); err != nil {
-		log.Fatal("Unable to create authorization_codes_table table")
+		log.Fatal("Unable to create authorization_codes table")
 	}
 
 	if _, err = d.Exec(trusted_devices_table); err != nil {
@@ -100,6 +109,28 @@ func insertProfile(email string, passwordhash string, name string) bool {
 	log.Printf("New profile created: %s, %s", name, email)
 	return true
 }
+
+func insertTrustedDevice(user_id int, fingerprint string) bool {
+
+	stmt, err := db.Prepare("INSERT INTO trusted_devices (user_id, device_fingerprint, expiration) VALUES (?,?,?)")
+
+	if err != nil {
+		log.Printf("Error preparing insert statement: %v", err)
+		return false
+	}
+	defer stmt.Close()
+
+	fingerprint_hash := computeHMAC256(fingerprint)
+
+	_, err = stmt.Exec(user_id, fingerprint_hash, time.Now().Add(30*24*time.Hour).Unix())
+
+	if err != nil {
+		log.Printf("Error inserting trusted device to db: %v", err)
+		return false
+	}
+	return true
+}
+
 
 func updateProfile(id int, column string, value any) error {
 	stmt, err := db.Prepare("UPDATE profiles SET " + column + " = " + "? WHERE id = ?")
@@ -179,20 +210,40 @@ func emailExists(email string) bool {
 }
 
 func isTrustedDevice(user_id int, fingerprint string) bool {
-	var trusted bool
-	err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM trusted_devices WHERE user_id = ? AND device_fingerprint = ?)",
-		user_id,
-		fingerprint).Scan(&trusted)
+    var device Trusted_Device
+
+	fingerprint_hash := computeHMAC256(fingerprint)
+    err := db.QueryRow(
+        "SELECT * FROM trusted_devices WHERE user_id = ? AND device_fingerprint = ?",
+        user_id,
+        fingerprint_hash,
+    ).Scan(&device.UserId, &device.DeviceFingerprint, &device.Expiration)
 
 	if err != nil {
-		log.Printf("Unable to query trusted_devices table: %v", err)
 		return false
 	}
-	return trusted
+
+	if device.Expiration <= time.Now().Unix() {
+		return false
+	}
+	return true
+}
+
+func findUserInfoFromResetToken(token string) (int, int64) {
+	var id int
+	var expiration int64
+	query := "SELECT id, reset_password_expiration FROM profiles WHERE reset_password_token = ? LIMIT 1"
+	err := db.QueryRow(query, token).Scan(&id, &expiration)
+
+	if err != nil {
+		return -1, -1
+	}
+
+	return id, expiration
 }
 
 func generateAuthorization(accesstoken string, refreshtoken string) string {
-	stmt, err := db.Prepare("INSERT INTO authorization_codes_table (code, access_token, refresh_token) VALUES (?,?,?)")
+	stmt, err := db.Prepare("INSERT INTO authorization_codes (code, access_token, refresh_token, expiration) VALUES (?,?,?,?)")
 
 	if err != nil {
 		log.Printf("Error preparing insert statement: %v", err)
@@ -200,8 +251,8 @@ func generateAuthorization(accesstoken string, refreshtoken string) string {
 	}
 	defer stmt.Close()
 
-	authorizationcode, err := generateRandomToken(16)
-	_, err = stmt.Exec(authorizationcode, accesstoken, refreshtoken)
+	authorizationcode, err := generateRandomToken()
+	_, err = stmt.Exec(authorizationcode, accesstoken, refreshtoken, time.Now().Add(15*time.Minute).Unix())
 
 	if err != nil {
 		log.Printf("Error generating authorization code: %v", err)
@@ -213,8 +264,13 @@ func generateAuthorization(accesstoken string, refreshtoken string) string {
 func getTokens(code string) (int, string, string) {
 	var refresh_token string
 	var access_token string
+	var expiration int64
 
-	err := db.QueryRow("SELECT access_token, refresh_token FROM authorization_codes_table WHERE code = ?", code).Scan(&access_token, &refresh_token)
+	err := db.QueryRow("SELECT access_token, refresh_token, expiration FROM authorization_codes WHERE code = ?", code).Scan(&access_token, &refresh_token, &expiration)
+
+	if expiration <= time.Now().Unix() {
+		return -1, "", ""
+	}
 
 	if err != nil {
 		log.Printf("Could not fetch tokens from db: %v", err)

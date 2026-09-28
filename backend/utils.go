@@ -9,13 +9,14 @@ import (
 	"log"
 	mathrand "math/rand"
 	"net/smtp"
-	"os"
 	cryptorand "crypto/rand"
+	"encoding/hex"
+	"encoding/base64"
+	"crypto/x509"
+	"encoding/pem"
 
 	"golang.org/x/crypto/bcrypt"
 )
-
-const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 func generatePasswordHash(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
@@ -27,19 +28,12 @@ func checkPassword(password string, hash string) bool {
 	return err == nil
 }
 
-func generateRandomToken(length int) (string, error) {
-	bytes := make([]byte, length)
-
-	_, err := cryptorand.Read(bytes)
-
-	if err != nil {
+func generateRandomToken() (string, error) {
+	bytes := make([]byte, 32)
+	if _, err := cryptorand.Read(bytes); err != nil {
 		return "", err
 	}
-	l := len(charset)
-	for i, b := range bytes {
-		bytes[i] = charset[b%byte(l)]
-	}
-	return string(bytes), nil
+	return base64.RawURLEncoding.EncodeToString(bytes), nil
 }
 
 func generateRandomInt(min int, max int) int {
@@ -48,12 +42,8 @@ func generateRandomInt(min int, max int) int {
 }
 
 func sendEmail(to []string, subject string, body string) {
-	smtpHost := os.Getenv("SMTP_HOST")
-	smtpPort := os.Getenv("SMTP_PORT")
-	smtpUser := os.Getenv("SMTP_USER")
-	smtpPassword := os.Getenv("SMTP_PASSWORD")
 
-	auth := smtp.PlainAuth("", smtpUser, smtpPassword, smtpHost)
+	auth := smtp.PlainAuth("", CONFIG.Smtp_User, CONFIG.Smtp_Password, CONFIG.Smtp_Host)
 
 	message := []byte(
 		"From: no-reply@conquerearthmc.com\r\n" +
@@ -62,7 +52,7 @@ func sendEmail(to []string, subject string, body string) {
 		"\r\n" +
 		body,
 	)
-	err := smtp.SendMail(smtpHost+":"+smtpPort, auth, smtpUser, to, message)
+	err := smtp.SendMail(CONFIG.Smtp_Host + ":" + CONFIG.Smtp_Port, auth, CONFIG.Smtp_User, to, message)
 
 	if err != nil {
 		log.Printf("Failed to send email: %v", err)
@@ -116,5 +106,24 @@ func verifySignature(data []byte, signature []byte, key any) bool {
 	default:
 		return false
 	}
+}
+
+func computeHMAC256(data string) string{
+	h := hmac.New(sha256.New, []byte(CONFIG.Secret_Key))
+	h.Write([]byte(data))
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+func convertPublicKeyToPEMString(key *rsa.PublicKey) string{
+	pubBytes, err := x509.MarshalPKIXPublicKey(key)
+	if err != nil {
+		log.Printf("Failed to marshal public key: %v", err)
+	}
+	pubPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: pubBytes,
+	})
+	pubKeyString := string(pubPEM)
+	return pubKeyString
 }
 

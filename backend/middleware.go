@@ -4,7 +4,6 @@ package main
 import (
 	"net/http"
 	"strings"
-	"os"
 	"encoding/base64"
 	"time"
 	"context"
@@ -30,7 +29,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		if !verifySignature([]byte(result[0]+"."+result[1]), []byte(decSig), []byte(os.Getenv("SECRET_KEY"))) {
+		if !verifySignature([]byte(result[0]+"."+result[1]), []byte(decSig), []byte(CONFIG.Secret_Key)) {
 			http.Error(w, "Invalid token signature", http.StatusUnauthorized)
 			return
 		}

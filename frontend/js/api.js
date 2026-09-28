@@ -80,14 +80,34 @@ export async function verifyTfa(otp, remember_device_param, dfp_param) {
     redirectToCallback(data.authorization_code);
 }
 
-export async function resetPassword(email) {
+export async function sendResetPassword(email) {
+    displayLoader(true);
+    const response = await fetch('/api/reset-password-email', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email })
+    });
+    displayLoader(false);
+
+    if (!response.ok) {
+        displayNotification('Password reset failed', true);
+        return;
+    }
+
+    displayNotification('Password reset link sent', false);
+    window.location.hash = '#login';
+}
+
+export async function resetPassword(new_password_param, token_param) {
     displayLoader(true);
     const response = await fetch('/api/reset-password', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ new_password: new_password_param, token: token_param })
     });
 
     const data = await response.json().catch(() => ({ error: true, message: 'Password reset failed' }));
@@ -99,7 +119,7 @@ export async function resetPassword(email) {
         return;
     }
 
-    displayNotification(data.message || 'Password reset sent');
+    displayNotification(data.message || 'Password reset successful', false);
     window.location.hash = '#login';
 }
 
@@ -140,10 +160,6 @@ export async function logout() {
         method: 'POST',
     });
     displayLoader(false);
-    if (!response.ok) {
-        displayNotification("Failed to logout user", true);
-        return
-    }
     window.location.hash = "#login";
 }
 

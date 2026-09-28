@@ -1,4 +1,4 @@
-import { login, register, verifyTfa, resetPassword, checkUserAuth, logout, updateEmail, updateName, updatePassword, enableTfa, sendTfa } from './api.js';
+import { login, register, verifyTfa, resetPassword, checkUserAuth, logout, updateEmail, updateName, updatePassword, enableTfa, sendTfa, sendResetPassword } from './api.js';
 import { displayModal, displayNotification } from './ui.js';
 import FingerprintJS from '@fingerprintjs/fingerprintjs'
 
@@ -46,6 +46,46 @@ async function hashChange() {
         return;
     }
 
+    if (location.hash == "#forgot-password") {
+        const token = new URLSearchParams(window.location.search).get('token');
+
+        if (token) {
+            container.innerHTML = `
+                <h1>Password reset</h1>
+                <form name="reset-password-form">
+                    <span>
+                        <label>New password</label>
+                        <input type="password" name="password" placeholder="New password" required />
+                    </span>
+                    <span>
+                        <label>Repeat password</label>
+                        <input type="password" name="confirm-password" placeholder="Repeat password" required />
+                    </span>
+                    <button type="submit">Submit</button>
+                </form>
+                <p>
+                    Remember your password?
+                    <a href="#login">Login</a>
+                </p>`;
+            return
+        }
+
+        container.innerHTML = `
+            <h1>Password reset</h1>
+            <form name="send-reset-password-form">
+                <span>
+                    <label>Email</label>
+                    <input type="email" name="email" placeholder="Email" required />
+                </span>
+                <button type="submit">Reset password</button>
+            </form>
+            <p>
+                Remember your password?
+                <a href="#login">Login</a>
+            </p>`;
+        return;
+    }
+
     let auth = await checkUserAuth();
     if (auth.authenticated) {
         renderProfile(auth.user_data);
@@ -76,26 +116,6 @@ async function hashChange() {
             </form>
             <p>
                 Already have an accout?
-                <a href="#login">Login</a>
-            </p>`;
-        return;
-    }
-
-    if (location.hash == "#forgot-password") {
-        container.innerHTML = `
-            <div class="loader">
-                <div class="spinner"></div>
-            </div>
-            <h1>Password reset</h1>
-            <form name="forgot-password-form">
-                <span>
-                    <label>Email</label>
-                    <input type="email" name="email" placeholder="Email" required />
-                </span>
-                <button type="submit">Reset password</button>
-            </form>
-            <p>
-                Remember your password?
                 <a href="#login">Login</a>
             </p>`;
         return;
@@ -154,10 +174,11 @@ async function submit(event) {
     const current_password = form.querySelector('input[name="current_password"]')?.value || '';    
     const name = form.querySelector('input[name="name"]')?.value || '';
     const otp = form.querySelector('input[name="otp"]')?.value || '';
+    const confirm_password = form.querySelector('input[name="confirm-password"]')?.value
 
     switch (form.getAttribute('name')) {
         case "register-form":
-            if (password !== document.querySelector('input[name="confirm-password"]')?.value) {
+            if (password !== confirm_password) {
                 displayNotification('Passwords do not match', true);
                 break;
             }
@@ -167,8 +188,8 @@ async function submit(event) {
             const dfp = await getFingerPrint();
             login(email, password, dfp);
             break;
-        case "reset-password-form":
-            resetPassword(email);
+        case "send-reset-password-form":
+            sendResetPassword(email);
             break;
         case "tfa-form":
             verifyTfa(otp);
@@ -196,6 +217,18 @@ async function submit(event) {
                 dfp2 =  await getFingerPrint();
             }
             verifyTfa(otp, remember_device, dfp2);
+            break;
+        case "send-reset-password-form":
+            sendResetPassword(email);
+            break;
+        case "reset-password-form":
+            const token = new URLSearchParams(window.location.search).get('token');
+
+            if (password !== confirm_password) {
+                displayNotification('Passwords do not match', true);
+                break;
+            }
+            resetPassword(password, token);
             break;
         default:
             return;

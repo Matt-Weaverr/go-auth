@@ -2,10 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
-	"strconv"
 )
 
 type Auth_Response struct {
@@ -263,11 +264,12 @@ func initRouter() {
 		}
 
 		if tfa.Remember_Device {
-			
-
-
-
-
+			if !isTrustedDevice(user.Id, tfa.Dfp) {
+				status := insertTrustedDevice(user.Id, tfa.Dfp)
+				if !status {
+					log.Printf("Failed to insert trusted device for user with id: %d", user.Id)
+				}
+			}
 		}
 
 		setUserAuthCookie(w, strconv.Itoa(user.Id), refreshToken)
@@ -307,14 +309,9 @@ func initRouter() {
 
 	mux.HandleFunc("/api/public-key", func(w http.ResponseWriter, r *http.Request) {
 
-		key := loadRSAPublicKeyFromPEM("keys/public-key.pem")
-
-		if key == nil {
-			http.Error(w, "Failed to get public key", http.StatusNotFound)
-			return
-		}
+		key := convertPublicKeyToPEMString(CONFIG.Public_Key)
 		err := json.NewEncoder(w).Encode(map[string]string{
-			"public-key": string(key),
+			"public-key": key,
 		})
 
 		if err != nil {
@@ -357,7 +354,7 @@ func initRouter() {
 		err := json.NewDecoder(r.Body).Decode(&payload);
 		defer r.Body.Close()
 
-		profile, err := readProfile("reset_password_token", payload["token"])
+
 		if err != nil {
 			json.NewEncoder(w).Encode(Reset_Password_Response{
 				Error:   true,
@@ -366,7 +363,9 @@ func initRouter() {
 			return
 		}
 
-		if *profile.Reset_Password_Expiration < time.Now().Unix() {
+		id, expiration := findUserInfoFromResetToken(payload["token"])
+
+		if expiration <= time.Now().Unix() {
 			json.NewEncoder(w).Encode(Reset_Password_Response{
 				Error:   true,
 				Message: "Reset token has expired",
@@ -374,7 +373,7 @@ func initRouter() {
 			return
 		}
 
-		err = updateProfile(profile.Id, "reset_password_expiration", time.Now().Unix());
+		err = updateProfile(id, "reset_password_expiration", 0);
 
 		if err != nil {
 			json.NewEncoder(w).Encode(Reset_Password_Response{
@@ -384,7 +383,7 @@ func initRouter() {
 			return
 		}
 
-		passwordhash, err := generatePasswordHash(payload["password"]);
+		passwordhash, err := generatePasswordHash(payload["new_password"]);
 
 		if err != nil {
 			json.NewEncoder(w).Encode(Reset_Password_Response{
@@ -394,7 +393,7 @@ func initRouter() {
 			return
 		}
 
-		err = updateProfile(profile.Id, "password", passwordhash)
+		err = updateProfile(id, "password_hash", passwordhash)
 
 		if err != nil {
 			json.NewEncoder(w).Encode(Reset_Password_Response{
@@ -419,7 +418,7 @@ func initRouter() {
 
 		profile, err := readProfile("email", email)
 
-		token, err := generateRandomToken(128)
+		token, err := generateRandomToken()
 
 		err = updateProfile(profile.Id, "reset_password_token", token)
 		err = updateProfile(profile.Id, "reset_password_expiration", time.Now().Add(15*time.Minute).Unix())
@@ -431,7 +430,7 @@ func initRouter() {
 		sendEmail(
 			[]string{email},
 			"Reset Password\n",
-			"Hello! You requested a password reset. Please use the following link to reset your password: https://conquerearthmc.com/#reset-password?token=" + token)
+			"Hello! You requested a password reset. Please use the following link to reset your password: " +  CONFIG.Domain + "/?token=" + token + "#forgot-password")
 	})
 
 	mux.Handle("/api/user", AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -501,7 +500,6 @@ func initRouter() {
 			"error":        false,
 			"message":       "",
 			})
-
 	})))
 
 
