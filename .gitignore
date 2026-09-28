@@ -1,6 +1,5 @@
 backend/go-auth
 backend/go-auth.exe
-backend/keys/
 
 backend/.env
 
