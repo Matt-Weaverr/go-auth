@@ -251,14 +251,16 @@ func generateAuthorization(accesstoken string, refreshtoken string) string {
 	}
 	defer stmt.Close()
 
-	authorizationcode, err := generateRandomToken()
-	_, err = stmt.Exec(authorizationcode, accesstoken, refreshtoken, time.Now().Add(15*time.Minute).Unix())
+	authorizationcode, err := generateRandomToken(true)
+	
+	authcodestr := string(authorizationcode)
+	_, err = stmt.Exec(authcodestr, accesstoken, refreshtoken, time.Now().Add(15*time.Minute).Unix())
 
 	if err != nil {
 		log.Printf("Error generating authorization code: %v", err)
 		return ""
 	}
-	return authorizationcode
+	return authcodestr
 }
 
 func getTokens(code string) (int, string, string) {

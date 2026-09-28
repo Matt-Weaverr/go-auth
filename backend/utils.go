@@ -28,12 +28,16 @@ func checkPassword(password string, hash string) bool {
 	return err == nil
 }
 
-func generateRandomToken() (string, error) {
+func generateRandomToken(encode bool) ([]byte, error) {
 	bytes := make([]byte, 32)
 	if _, err := cryptorand.Read(bytes); err != nil {
-		return "", err
+		return []byte{}, err
 	}
-	return base64.RawURLEncoding.EncodeToString(bytes), nil
+	if !encode {
+		return bytes, nil
+
+	}
+	return []byte(base64.RawURLEncoding.EncodeToString(bytes)), nil
 }
 
 func generateRandomInt(min int, max int) int {

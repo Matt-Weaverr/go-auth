@@ -57,13 +57,14 @@ func login(email string, password string, devicefingerprint string) (int, string
 }
 
 func generateAuthTokens(id int, email string, name string) (bool, string, string) {
-	refreshtoken, err := generateRandomToken()
+	refreshtoken, err := generateRandomToken(true)
+	refreshtokenstr := string(refreshtoken)
 	if err != nil {
 		log.Printf("Failed to generate refresh token for user (%s)", email)
 		log.Print(err)
 		return  false, "", ""
 	}
-	err = updateProfile(id, "refresh_token", refreshtoken)
+	err = updateProfile(id, "refresh_token", refreshtokenstr)
 	err = updateProfile(id, "refresh_token_expiration", time.Now().Add(time.Duration(CONFIG.Refresh_Token_Expiration) * time.Minute).Unix())
 
 	if err != nil {
@@ -72,7 +73,7 @@ func generateAuthTokens(id int, email string, name string) (bool, string, string
 
 	accesstoken := generateAccessJWT(id, email, name)
 
-	return true, refreshtoken, accesstoken
+	return true, refreshtokenstr, accesstoken
 }
 
 /*

@@ -53,7 +53,10 @@ func initConfig() {
 	CONFIG.Smtp_Password = os.Getenv("SMTP_PASSWORD")
 	CONFIG.Smtp_User = os.Getenv("SMTP_USER")
 	CONFIG.Domain = os.Getenv("DOMAIN")
-	CONFIG.Secret_Key = os.Getenv("SECRET_KEY")
+
+	secret_key, err := generateRandomToken(false)
+	 
+	CONFIG.Secret_Key = string(secret_key)
 
 	devmode, err := strconv.ParseBool(os.Getenv("DEV_MODE"))
 

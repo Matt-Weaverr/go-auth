@@ -418,9 +418,11 @@ func initRouter() {
 
 		profile, err := readProfile("email", email)
 
-		token, err := generateRandomToken()
+		token, err := generateRandomToken(true)
 
-		err = updateProfile(profile.Id, "reset_password_token", token)
+		tokenstr := string(token)
+
+		err = updateProfile(profile.Id, "reset_password_token", tokenstr)
 		err = updateProfile(profile.Id, "reset_password_expiration", time.Now().Add(15*time.Minute).Unix())
 
 		if err != nil {
@@ -430,7 +432,7 @@ func initRouter() {
 		sendEmail(
 			[]string{email},
 			"Reset Password\n",
-			"Hello! You requested a password reset. Please use the following link to reset your password: " +  CONFIG.Domain + "/?token=" + token + "#forgot-password")
+			"Hello! You requested a password reset. Please use the following link to reset your password: " +  CONFIG.Domain + "/?token=" + tokenstr + "#forgot-password")
 	})
 
 	mux.Handle("/api/user", AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
